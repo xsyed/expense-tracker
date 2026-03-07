@@ -6,7 +6,8 @@ Make every imported transaction visible and fully editable directly within the e
 ---
 
 ## Goals
-- Render all transactions for an expense month in a sortable, readable table on the detail screen.
+- Render all transactions for an expense month in a sortable, readable table on the detail screen. 
+- IMPORTANT: Use AG Grid Community v32 (LTS) version for the transaction table to leverage its built-in features like sorting, pagination, and inline editing. This will save development time and provide a more robust user experience compared to building a custom table from scratch.
 - Make every column of every transaction row editable inline with auto-save (no separate edit page).
 - Keep the page summary cards (Income / Expense / Net) live and accurate after every change.
 - Allow users to delete individual transactions.
@@ -85,3 +86,6 @@ Make every imported transaction visible and fully editable directly within the e
 | 12 | Net Balance is displayed in green when positive and red when negative (or zero). |
 | 13 | The Category dropdown in each row is populated with the user's current categories (including any added or renamed since the page loaded — categories list is fresh per request). |
 | 14 | All inline edits and deletes are scoped to the logged-in user's own transactions; direct URL manipulation against another user's transactions returns a 404. |
+
+
+SUPER CRITICAL: Use AG Grid Community v32 (LTS) version for the transaction table

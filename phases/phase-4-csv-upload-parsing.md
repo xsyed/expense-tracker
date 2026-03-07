@@ -102,3 +102,9 @@ Each successfully parsed row produces a dict with keys: `date`, `description`, `
 | 13 | Uploading a file that is not a valid CSV shows a clear error message and saves no data. |
 | 14 | Rows that cannot be parsed are reported with a count and reason; the remaining valid rows are still saved. |
 | 15 | The summary cards on the expense month detail screen reflect the newly imported transactions immediately after upload. |
+
+
+
+IMPORTANT: READ this project. /Users/sami/Documents/simple-monthly-budget 
+
+I do not want the LLM/AI calls or categories. This is for you to just understanding the parsing of csv files which will be uploaded nothing. You should just understand and handle edge cases for parsing csv files. No API calls for LLM or Merchant categorisation.

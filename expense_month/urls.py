@@ -24,4 +24,12 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("auth/", include("core.urls")),
     path("", core_views.home_view, name="home"),
+    path("categories/", core_views.category_list_view, name="category_list"),
+    path("categories/<int:pk>/edit/", core_views.category_edit_view, name="category_edit"),
+    path("categories/<int:pk>/delete/", core_views.category_delete_view, name="category_delete"),
+    path("months/", core_views.month_list_view, name="month_list"),
+    path("months/create/", core_views.month_create_view, name="month_create"),
+    path("months/<int:pk>/", core_views.month_detail_view, name="month_detail"),
+    path("months/<int:pk>/edit/", core_views.month_edit_view, name="month_edit"),
+    path("months/<int:pk>/delete/", core_views.month_delete_view, name="month_delete"),
 ]

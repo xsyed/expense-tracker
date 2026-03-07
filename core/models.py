@@ -1,5 +1,8 @@
+from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 
 class UserManager(BaseUserManager):
@@ -35,3 +38,79 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+
+DEFAULT_CATEGORIES = [
+    "Housing & Utilities",
+    "Transportation",
+    "Grocery",
+    "Food / Uber Eats",
+    "Money Transfers",
+    "Savings & Investments",
+    "Amazon / Online Shopping",
+    "Clothing & Grooming",
+    "Movies & Entertainment",
+    "Donations",
+    "Miscellaneous",
+    "Debt Payment",
+]
+
+
+class Category(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="categories",
+    )
+    name = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "category"
+        verbose_name_plural = "categories"
+        unique_together = ("user", "name")
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+@receiver(post_save, sender=settings.AUTH_USER_MODEL)
+def seed_default_categories(sender, instance, created, **kwargs):
+    if created:
+        Category.objects.bulk_create(
+            [Category(user=instance, name=name) for name in DEFAULT_CATEGORIES]
+        )
+
+
+class ExpenseMonth(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="expense_months",
+    )
+    label = models.CharField(max_length=100)
+    month = models.DateField()  # day is always stored as 1, encodes year + month
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "month")
+        ordering = ["-month"]
+        verbose_name = "expense month"
+        verbose_name_plural = "expense months"
+
+    def __str__(self):
+        return self.label
+
+    @property
+    def total_income(self):
+        # Computed from transactions — populated in Phase 5
+        return 0
+
+    @property
+    def total_expenses(self):
+        return 0
+
+    @property
+    def net_balance(self):
+        return self.total_income - self.total_expenses

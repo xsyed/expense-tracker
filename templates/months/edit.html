@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ expense_month.label }} — Expense Tracker{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-6 col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h4 class="card-title mb-1">
+          <i class="bi bi-pencil me-2"></i>Edit Expense Month
+        </h4>
+        <p class="text-muted small mb-4">
+          <i class="bi bi-lock me-1"></i>Calendar month ({{ expense_month.month|date:"F Y" }}) cannot be changed.
+        </p>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+          </div>
+          {% endif %}
+
+          <div class="mb-4">
+            <label for="{{ form.label.id_for_label }}" class="form-label fw-semibold">Label</label>
+            {{ form.label }}
+            {% if form.label.errors %}
+            <div class="invalid-feedback d-block">{{ form.label.errors|join:", " }}</div>
+            {% endif %}
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-circle me-1"></i>Save
+            </button>
+            <a href="{% url 'month_detail' expense_month.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

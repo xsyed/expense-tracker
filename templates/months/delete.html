@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Delete {{ expense_month.label }} — Expense Tracker{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-6 col-lg-5">
+    <div class="card border-danger shadow-sm">
+      <div class="card-body p-4">
+        <h4 class="card-title text-danger mb-3">
+          <i class="bi bi-exclamation-triangle me-2"></i>Delete Expense Month
+        </h4>
+
+        <p>Are you sure you want to delete <strong>{{ expense_month.label }}</strong> ({{ expense_month.month|date:"F Y" }})?</p>
+
+        <div class="alert alert-danger">
+          <i class="bi bi-exclamation-circle me-1"></i>
+          <strong>Warning:</strong> This will permanently delete this expense month along with
+          <strong>all its transactions and CSV upload records</strong>. This action cannot be undone.
+        </div>
+
+        <form method="post" class="d-flex gap-2">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash me-1"></i>Yes, Delete Everything
+          </button>
+          <a href="{% url 'month_detail' expense_month.pk %}" class="btn btn-outline-secondary">Cancel</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

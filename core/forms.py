@@ -1,6 +1,10 @@
+import datetime
+
 from django import forms
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
+
+from .models import Category, ExpenseMonth
 
 User = get_user_model()
 
@@ -70,3 +74,91 @@ class LoginForm(forms.Form):
 
     def get_user(self):
         return self._user
+
+
+class CategoryForm(forms.ModelForm):
+    class Meta:
+        model = Category
+        fields = ["name"]
+        widgets = {
+            "name": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Category name"}
+            ),
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean_name(self):
+        name = self.cleaned_data["name"].strip()
+        qs = Category.objects.filter(user=self.user, name__iexact=name)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("You already have a category with this name.")
+        return name
+
+
+MONTH_CHOICES = [
+    (1, "January"), (2, "February"), (3, "March"), (4, "April"),
+    (5, "May"), (6, "June"), (7, "July"), (8, "August"),
+    (9, "September"), (10, "October"), (11, "November"), (12, "December"),
+]
+
+
+class ExpenseMonthCreateForm(forms.Form):
+    label = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. February 2026"}),
+    )
+    month = forms.ChoiceField(
+        choices=MONTH_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    year = forms.ChoiceField(
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        today = datetime.date.today()
+        year_choices = [(y, y) for y in range(today.year - 3, today.year + 3)]
+        super().__init__(*args, **kwargs)
+        self.fields["year"].choices = year_choices
+        # Default selects to current month/year
+        if not args and not kwargs.get("data"):
+            self.fields["month"].initial = today.month
+            self.fields["year"].initial = today.year
+
+    def clean(self):
+        cleaned_data = super().clean()
+        month = cleaned_data.get("month")
+        year = cleaned_data.get("year")
+        if month and year:
+            try:
+                month_date = datetime.date(int(year), int(month), 1)
+            except ValueError:
+                raise forms.ValidationError("Invalid month/year combination.")
+            cleaned_data["month_date"] = month_date
+            if ExpenseMonth.objects.filter(user=self.user, month=month_date).exists():
+                raise forms.ValidationError(
+                    "You already have an expense month for this calendar month."
+                )
+        return cleaned_data
+
+    def save(self):
+        return ExpenseMonth.objects.create(
+            user=self.user,
+            label=self.cleaned_data["label"],
+            month=self.cleaned_data["month_date"],
+        )
+
+
+class ExpenseMonthEditForm(forms.ModelForm):
+    class Meta:
+        model = ExpenseMonth
+        fields = ["label"]
+        widgets = {
+            "label": forms.TextInput(attrs={"class": "form-control"}),
+        }
