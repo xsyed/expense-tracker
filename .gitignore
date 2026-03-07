@@ -1,0 +1,212 @@
+# ─────────────────────────────────────────────
+#  ENVIRONMENT & SECRETS
+# ─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+!.env.template
+.env.local
+.env.development
+.env.staging
+.env.production
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+secrets/
+secret_key.txt
+
+# ─────────────────────────────────────────────
+#  DJANGO-SPECIFIC
+# ─────────────────────────────────────────────
+# SQLite databases
+*.sqlite3
+*.sqlite3-journal
+*.db
+db.sqlite3
+
+# Django media & static (collected)
+media/
+staticfiles/
+/static/  
+
+# Django local settings override
+local_settings.py
+settings/local.py
+
+# Django migrations (keep if you want version-controlled migrations;
+# uncomment if you prefer not to track them)
+# */migrations/*.py
+# !*/migrations/__init__.py
+
+# Celery beat schedule file
+celerybeat-schedule
+celerybeat.pid
+
+# ─────────────────────────────────────────────
+#  PYTHON
+# ─────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+.Python
+
+# Distribution / packaging
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env/
+virtualenv/
+.virtualenv/
+Pipfile.lock
+
+# ─────────────────────────────────────────────
+#  TESTING & COVERAGE
+# ─────────────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+*.cover
+nosetests.xml
+test-results/
+
+# ─────────────────────────────────────────────
+#  TYPE CHECKING & LINTING
+# ─────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pylint.d/
+pyrightconfig.json
+
+# ─────────────────────────────────────────────
+#  LOGS & TEMPORARY FILES
+# ─────────────────────────────────────────────
+*.log
+logs/
+*.tmp
+*.temp
+temp/
+*.bak
+*.swp
+*.swo
+*~
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ─────────────────────────────────────────────
+#  SENSITIVE FINANCIAL DATA (project-specific)
+# ─────────────────────────────────────────────
+data/statements/
+data/output/
+data/cache/
+data/*.pkl
+data/*.pickle
+*.csv
+*.xlsx
+*.xls
+merchant_cache.json
+
+# ─────────────────────────────────────────────
+#  JUPYTER NOTEBOOKS
+# ─────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ─────────────────────────────────────────────
+#  NODE / FRONTEND (if added later)
+# ─────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-error.log
+.pnp
+.pnp.js
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# ─────────────────────────────────────────────
+#  IDE & EDITORS
+# ─────────────────────────────────────────────
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+.vim/
+.netrwhist
+
+# ─────────────────────────────────────────────
+#  macOS
+# ─────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+.fseventsd
+.DocumentRevisions-V100
+.TemporaryItems
+.VolumeIcon.icns
+
+# ─────────────────────────────────────────────
+#  WINDOWS
+# ─────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ─────────────────────────────────────────────
+#  LINUX
+# ─────────────────────────────────────────────
+*~
+
+# ─────────────────────────────────────────────
+#  DOCKER
+# ─────────────────────────────────────────────
+.docker/
+docker-compose.override.yml
+
+# ─────────────────────────────────────────────
+#  DEPLOYMENT & CI
+# ─────────────────────────────────────────────
+.terraform/
+*.tfstate
+*.tfstate.backup
+.serverless/
+.netlify/
