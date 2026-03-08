@@ -10,7 +10,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import ExpenseMonthCreateForm, ExpenseMonthEditForm
-from .models import Category, ExpenseMonth, UserGridPreference
+from .models import Account, Category, ExpenseMonth, UserGridPreference
 
 
 def _month_summary(month: ExpenseMonth) -> dict[str, int | bool]:
@@ -57,7 +57,7 @@ def month_create_view(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def month_detail_view(request: HttpRequest, pk: int) -> HttpResponse:
-    grid_columns = ["date", "description", "amount", "account", "transaction_type", "category_name"]
+    grid_columns = ["date", "description", "amount", "account_name", "transaction_type", "category_name"]
     expense_month = get_object_or_404(ExpenseMonth, pk=pk, user=request.user)
     transactions_data = [
         {
@@ -65,16 +65,18 @@ def month_detail_view(request: HttpRequest, pk: int) -> HttpResponse:
             "date": str(tx.date),
             "description": tx.description,
             "amount": float(tx.amount),
-            "account": tx.account or "",
+            "account_id": str(tx.account_id) if tx.account_id else "",
+            "account_name": tx.account.name if tx.account else "",
             "transaction_type": tx.transaction_type,
             "category_id": str(tx.category_id) if tx.category_id else "",
             "category_name": tx.category.name if tx.category else "",
         }
-        for tx in expense_month.transactions.select_related("category").all()
+        for tx in expense_month.transactions.select_related("category", "account").all()
     ]
     categories_data = [{"id": c.id, "name": c.name} for c in Category.objects.filter(user=request.user)]
+    accounts_data = [{"id": a.id, "name": a.name} for a in Account.objects.filter(user=request.user)]
     defaults = {col: True for col in grid_columns}
-    defaults["account"] = False
+    defaults["account_name"] = False
     defaults["transaction_type"] = False
     pref, _ = UserGridPreference.objects.get_or_create(
         user=request.user,
@@ -90,6 +92,7 @@ def month_detail_view(request: HttpRequest, pk: int) -> HttpResponse:
             "recent_months": recent_months,
             "transactions_json": json.dumps(transactions_data),
             "categories_json": json.dumps(categories_data),
+            "accounts_json": json.dumps(accounts_data),
             "column_visibility_json": json.dumps(visibility),
         },
     )

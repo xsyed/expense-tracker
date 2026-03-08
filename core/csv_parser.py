@@ -76,7 +76,6 @@ class CSVParser:
                     "date": date_val,
                     "description": description,
                     "amount": amount,
-                    "account": (row.get("account") or "").strip(),
                     "source_file": filename,
                 }
             )

@@ -43,7 +43,6 @@ def csv_upload_view(request: HttpRequest, pk: int) -> HttpResponse:
                         date=row["date"],
                         description=row["description"],
                         amount=row["amount"],
-                        account=row.get("account", ""),
                         source_file=row.get("source_file", filename),
                         transaction_type="expense",
                     )

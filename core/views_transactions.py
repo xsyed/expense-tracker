@@ -9,7 +9,7 @@ from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
 
-from .models import Category, ExpenseMonth, Transaction, UserGridPreference
+from .models import Account, Category, ExpenseMonth, Transaction, UserGridPreference
 from .views_months import _month_summary
 
 
@@ -61,13 +61,17 @@ def transaction_update_view(request: HttpRequest, month_id: int, tx_id: int) -> 
             )
         transaction.amount = dec
 
-    elif field == "account":
-        if value and len(str(value)) > 200:  # noqa: PLR2004
-            return JsonResponse(
-                {"success": False, "error": "Account must be 200 characters or fewer.", "field": "account"},
-                status=400,
-            )
-        transaction.account = str(value) if value else ""
+    elif field == "account_id":
+        if not value:
+            transaction.account = None
+        else:
+            try:
+                transaction.account = Account.objects.get(id=value, user=request.user)
+            except Account.DoesNotExist:
+                return JsonResponse(
+                    {"success": False, "error": "Invalid account.", "field": "account_id"},
+                    status=400,
+                )
 
     elif field == "transaction_type":
         if value not in ("income", "expense", "unassigned"):
@@ -98,7 +102,8 @@ def transaction_update_view(request: HttpRequest, month_id: int, tx_id: int) -> 
         "date": str(transaction.date),
         "description": transaction.description,
         "amount": float(transaction.amount),
-        "account": transaction.account or "",
+        "account_id": str(transaction.account_id) if transaction.account_id else "",
+        "account_name": transaction.account.name if transaction.account else "",
         "transaction_type": transaction.transaction_type,
         "category_id": str(transaction.category_id) if transaction.category_id else "",
         "category_name": transaction.category.name if transaction.category else "",
@@ -118,7 +123,7 @@ def transaction_delete_view(request: HttpRequest, month_id: int, tx_id: int) -> 
 @login_required
 @require_POST
 def update_grid_preferences_view(request: HttpRequest) -> JsonResponse:
-    grid_columns = {"date", "description", "amount", "account", "transaction_type", "category_name"}
+    grid_columns = {"date", "description", "amount", "account_name", "transaction_type", "category_name"}
     try:
         body = json.loads(request.body)
     except (json.JSONDecodeError, ValueError):
@@ -134,7 +139,7 @@ def update_grid_preferences_view(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"success": False, "error": "column_visibility values must be booleans."}, status=400)
 
     defaults = {col: True for col in grid_columns}
-    defaults["account"] = False
+    defaults["account_name"] = False
     defaults["transaction_type"] = False
     pref, _ = UserGridPreference.objects.get_or_create(
         user=request.user,

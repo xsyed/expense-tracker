@@ -8,7 +8,7 @@ from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.http import HttpRequest
 
-from .models import Category, ExpenseMonth
+from .models import Account, Category, ExpenseMonth
 from .models import User as UserModel
 
 User = get_user_model()
@@ -103,6 +103,29 @@ class CategoryForm(forms.ModelForm[Category]):
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
             raise forms.ValidationError("You already have a category with this name.")
+        return name
+
+
+class AccountForm(forms.ModelForm[Account]):
+    class Meta:
+        model = Account
+        fields = ["name"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Account name"}),
+        }
+
+    def __init__(self, *args: Any, user: UserModel | None = None, **kwargs: Any) -> None:
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean_name(self) -> str:
+        name: str = self.cleaned_data["name"]
+        name = name.strip()
+        qs = Account.objects.filter(user=self.user, name__iexact=name)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("You already have an account with this name.")
         return name
 
 

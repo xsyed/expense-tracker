@@ -18,6 +18,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
+from core.views_accounts import account_delete_view, account_edit_view, account_list_view
 from core.views_auth import home_view
 from core.views_categories import category_delete_view, category_edit_view, category_list_view
 from core.views_charts import (
@@ -42,6 +43,9 @@ urlpatterns = [
     path("categories/", category_list_view, name="category_list"),
     path("categories/<int:pk>/edit/", category_edit_view, name="category_edit"),
     path("categories/<int:pk>/delete/", category_delete_view, name="category_delete"),
+    path("accounts/", account_list_view, name="account_list"),
+    path("accounts/<int:pk>/edit/", account_edit_view, name="account_edit"),
+    path("accounts/<int:pk>/delete/", account_delete_view, name="account_delete"),
     path("months/", month_list_view, name="month_list"),
     path("months/create/", month_create_view, name="month_create"),
     path("months/<int:pk>/", month_detail_view, name="month_detail"),

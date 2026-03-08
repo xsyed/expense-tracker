@@ -162,9 +162,10 @@
 
   const transactionsData = {{ transactions_json|safe }};
   const categoriesData   = {{ categories_json|safe }};
+  const accountsData     = {{ accounts_json|safe }};
   const monthId          = {{ expense_month.pk }};
   const columnVisibilityPrefs = {{ column_visibility_json|safe }};
-  const GRID_COLUMNS = ['date', 'description', 'amount', 'account', 'transaction_type', 'category_name'];
+  const GRID_COLUMNS = ['date', 'description', 'amount', 'account_name', 'transaction_type', 'category_name'];
 
   // ── CSRF helper ──────────────────────────────────────────────────────────
   function getCsrfToken() {
@@ -186,6 +187,10 @@
   // ── Category helpers ─────────────────────────────────────────────────────
   const categorySelectValues = ['', ...categoriesData.map(c => c.name)];
   const nameToCatMap = Object.fromEntries(categoriesData.map(c => [c.name, c]));
+
+  // ── Account helpers ───────────────────────────────────────────────────────
+  const accountSelectValues = ['', ...accountsData.map(a => a.name)];
+  const nameToAccountMap = Object.fromEntries(accountsData.map(a => [a.name, a]));
 
   // ── Currency formatter using browser locale ──────────────────────────────
   function getCurrencyFromLocale(locale = navigator.language) {
@@ -320,6 +325,13 @@
       value = match ? String(match.id) : '';
     }
 
+    // Map account_name → account_id for the backend
+    if (field === 'account_name') {
+      const match = nameToAccountMap[value];
+      field = 'account_id';
+      value = match ? String(match.id) : '';
+    }
+
     try {
       const resp   = await postJSON(
         '/months/' + monthId + '/transactions/' + txId + '/update/',
@@ -368,7 +380,7 @@
       date: 'Date',
       description: 'Description',
       amount: 'Amount',
-      account: 'Account',
+      account_name: 'Account',
       transaction_type: 'Type',
       category_name: 'Category',
     };
@@ -470,10 +482,11 @@
       width: 115,
     },
     {
-      field: 'account',
+      field: 'account_name',
       headerName: 'Account',
       editable: true,
-      cellEditor: 'agTextCellEditor',
+      cellEditor: 'agSelectCellEditor',
+      cellEditorParams: { values: accountSelectValues },
       valueFormatter: params => params.value || '—',
       width: 140,
     },

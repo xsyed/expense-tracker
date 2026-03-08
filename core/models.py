@@ -123,6 +123,23 @@ class ExpenseMonth(models.Model):
         return self.total_income - self.total_expenses
 
 
+class Account(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="accounts",
+    )
+    name = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "name")
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Transaction(models.Model):
     TRANSACTION_TYPES = [
         ("income", "Income"),
@@ -138,7 +155,13 @@ class Transaction(models.Model):
     date = models.DateField()
     description = models.CharField(max_length=500)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    account = models.CharField(max_length=200, blank=True, null=True)  # noqa: DJ001
+    account = models.ForeignKey(
+        Account,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transactions",
+    )
     transaction_type = models.CharField(
         max_length=20,
         choices=TRANSACTION_TYPES,
