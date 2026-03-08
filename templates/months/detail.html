@@ -447,37 +447,85 @@
   // ── Category search editor ────────────────────────────────────────────────
   class CategorySearchEditor {
     init(params) {
-      this._params = params;
-      this._value  = params.value || '';
+      this._params      = params;
+      this._value       = params.value || '';
+      this._focusIndex  = -1;   // -1 = input focused, 0+ = list item focused
 
       this._eGui = document.createElement('div');
       this._eGui.style.cssText =
         'background:#fff; border:1px solid #86b7fe; border-radius:4px; ' +
         'box-shadow:0 4px 12px rgba(0,0,0,.12); width:220px; overflow:hidden;';
 
+      // Search row: input + chevron arrow
+      const inputRow = document.createElement('div');
+      inputRow.style.cssText =
+        'position:relative; border-bottom:1px solid #dee2e6;';
+
       this._input = document.createElement('input');
       this._input.type = 'text';
       this._input.placeholder = 'Search category…';
       this._input.style.cssText =
-        'display:block; width:100%; padding:6px 10px; border:none; ' +
-        'border-bottom:1px solid #dee2e6; outline:none; font-size:0.875rem; box-sizing:border-box;';
+        'display:block; width:100%; padding:6px 30px 6px 10px; border:none; ' +
+        'outline:none; font-size:0.875rem; box-sizing:border-box;';
+
+      const arrow = document.createElement('span');
+      arrow.innerHTML = '&#9660;';
+      arrow.style.cssText =
+        'position:absolute; right:8px; top:50%; transform:translateY(-50%); ' +
+        'font-size:0.7rem; color:#6c757d; pointer-events:none; line-height:1;';
+
+      inputRow.appendChild(this._input);
+      inputRow.appendChild(arrow);
 
       this._list = document.createElement('ul');
       this._list.style.cssText =
         'list-style:none; margin:0; padding:0; max-height:180px; overflow-y:auto;';
 
-      this._eGui.appendChild(this._input);
+      this._eGui.appendChild(inputRow);
       this._eGui.appendChild(this._list);
 
-      this._input.addEventListener('input', () => this._renderList(this._input.value));
+      this._input.addEventListener('input', () => {
+        this._focusIndex = -1;
+        this._renderList(this._input.value);
+      });
+
       this._input.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           this._value = params.value || '';
           params.stopEditing(true);
         } else if (e.key === 'Enter') {
-          params.stopEditing();
+          const items = this._list.querySelectorAll('li');
+          if (this._focusIndex >= 0 && items[this._focusIndex]) {
+            items[this._focusIndex].dispatchEvent(new MouseEvent('mousedown'));
+          } else {
+            params.stopEditing();
+          }
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          this._moveFocus(1);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          this._moveFocus(-1);
         }
       });
+    }
+
+    _moveFocus(delta) {
+      const items = this._list.querySelectorAll('li');
+      if (!items.length) return;
+      this._setFocusIndex(this._focusIndex + delta, items);
+    }
+
+    _setFocusIndex(next, items) {
+      const count = items.length;
+      next = Math.max(0, Math.min(next, count - 1));
+      if (this._focusIndex >= 0 && items[this._focusIndex]) {
+        items[this._focusIndex].style.background = '';
+      }
+      this._focusIndex = next;
+      const target = items[next];
+      target.style.background = '#e9ecef';
+      target.scrollIntoView({ block: 'nearest' });
     }
 
     _makeItem(text, onClick, muted) {
