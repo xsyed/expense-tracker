@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load math_filters %}
 
 {% block title %}Home — Expense Tracker{% endblock %}
 
@@ -26,15 +27,15 @@
         <div class="row g-2 my-2 text-center">
           <div class="col-4">
             <div class="small text-muted">Income</div>
-            <div class="fw-semibold text-success">${{ em.total_income }}</div>
+            <div class="fw-semibold text-success">${{ em.total_income|floor }}</div>
           </div>
           <div class="col-4">
             <div class="small text-muted">Expenses</div>
-            <div class="fw-semibold text-danger">${{ em.total_expenses }}</div>
+            <div class="fw-semibold text-danger">${{ em.total_expenses|floor }}</div>
           </div>
           <div class="col-4">
             <div class="small text-muted">Net</div>
-            <div class="fw-semibold {% if em.net_balance >= 0 %}text-success{% else %}text-danger{% endif %}">${{ em.net_balance }}</div>
+            <div class="fw-semibold {% if em.net_balance >= 0 %}text-success{% else %}text-danger{% endif %}">${{ em.net_balance|floor }}</div>
           </div>
         </div>
       </div>

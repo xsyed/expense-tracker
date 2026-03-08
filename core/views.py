@@ -17,13 +17,14 @@ from .models import Category, CSVUpload, ExpenseMonth, Transaction
 
 
 def _month_summary(month):
+    import math as _math
     income = month.total_income
     expenses = month.total_expenses
     net = month.net_balance
     return {
-        'income': f'{income:.2f}',
-        'expense': f'{expenses:.2f}',
-        'net': f'{net:.2f}',
+        'income': _math.floor(income),
+        'expense': _math.floor(expenses),
+        'net': _math.floor(net),
         'net_positive': net >= 0,
     }
 
@@ -199,6 +200,23 @@ def transaction_delete_view(request, month_id, tx_id):
 
 
 @login_required
+@require_POST
+def transaction_bulk_delete_view(request, month_id):
+    month = get_object_or_404(ExpenseMonth, id=month_id, user=request.user)
+    try:
+        body = json.loads(request.body)
+        ids = body.get('ids', [])
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'success': False, 'error': 'Invalid request body.'}, status=400)
+    if not isinstance(ids, list) or not ids:
+        return JsonResponse({'success': False, 'error': 'No transaction IDs provided.'}, status=400)
+    deleted_count, _ = Transaction.objects.filter(
+        id__in=ids, expense_month=month
+    ).delete()
+    return JsonResponse({'success': True, 'deleted_count': deleted_count, 'summary': _month_summary(month)})
+
+
+@login_required
 def month_edit_view(request, pk):
     expense_month = get_object_or_404(ExpenseMonth, pk=pk, user=request.user)
     if request.method == "POST":
@@ -258,6 +276,7 @@ def csv_upload_view(request, pk):
                         amount=row["amount"],
                         account=row.get("account", ""),
                         source_file=row.get("source_file", f.name),
+                        transaction_type='expense',
                     )
                     for row in rows
                 ]

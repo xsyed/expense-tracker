@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load math_filters %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-grid.min.css">
@@ -25,90 +26,126 @@
   </div>
 </div>
 
-<!-- Summary cards -->
-<div class="row g-3 mb-4">
-  <div class="col-12 col-sm-4">
-    <div class="card text-center border-success">
-      <div class="card-body">
-        <div class="text-muted small mb-1">Total Income</div>
-        <div id="income-total" class="fs-4 fw-bold text-success">£{{ expense_month.total_income|floatformat:2 }}</div>
+<!-- Two-column layout -->
+<div class="row g-3 mb-4 align-items-start">
+
+  <!-- Left — 75%: Summary cards + Transactions -->
+  <div class="col-12 col-lg-9 d-flex flex-column gap-3">
+
+    <!-- Summary cards -->
+    <div class="row g-3">
+      <div class="col-12 col-sm-4">
+        <div class="card text-center border-success">
+          <div class="card-body">
+            <div class="text-muted small mb-1">Total Income</div>
+            <div id="income-total" class="fs-4 fw-bold text-success" data-amount="{{ expense_month.total_income|floor }}"></div>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
-  <div class="col-12 col-sm-4">
-    <div class="card text-center border-danger">
-      <div class="card-body">
-        <div class="text-muted small mb-1">Total Expenses</div>
-        <div id="expense-total" class="fs-4 fw-bold text-danger">£{{ expense_month.total_expenses|floatformat:2 }}</div>
+      <div class="col-12 col-sm-4">
+        <div class="card text-center border-danger">
+          <div class="card-body">
+            <div class="text-muted small mb-1">Total Expenses</div>
+            <div id="expense-total" class="fs-4 fw-bold text-danger" data-amount="{{ expense_month.total_expenses|floor }}"></div>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
-  <div class="col-12 col-sm-4">
-    <div id="net-balance-card" class="card text-center {% if expense_month.net_balance >= 0 %}border-success{% else %}border-danger{% endif %}">
-      <div class="card-body">
-        <div class="text-muted small mb-1">Net Balance</div>
-        <div id="net-balance" class="fs-4 fw-bold {% if expense_month.net_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
-          £{{ expense_month.net_balance|floatformat:2 }}
+      <div class="col-12 col-sm-4">
+        <div id="net-balance-card" class="card text-center {% if expense_month.net_balance >= 0 %}border-success{% else %}border-danger{% endif %}">
+          <div class="card-body">
+            <div class="text-muted small mb-1">Net Balance</div>
+            <div id="net-balance" class="fs-4 fw-bold {% if expense_month.net_balance >= 0 %}text-success{% else %}text-danger{% endif %}" data-amount="{{ expense_month.net_balance|floor }}"></div>
+          </div>
         </div>
       </div>
     </div>
-  </div>
-</div>
 
-<!-- CSV Upload -->
-<div class="card mb-3">
-  <div class="card-header">
-    <h6 class="mb-0"><i class="bi bi-cloud-upload me-2"></i>Upload CSV</h6>
-  </div>
-  <div class="card-body">
-    <form method="post" enctype="multipart/form-data" action="{% url 'csv_upload' expense_month.pk %}">
-      {% csrf_token %}
-      <div class="d-flex gap-2 align-items-center">
-        <input type="file" name="csv_file" class="form-control" accept=".csv" multiple required>
-        <button type="submit" class="btn btn-primary text-nowrap">
-          <i class="bi bi-upload me-1"></i>Upload
-        </button>
+    <!-- Transactions -->
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0"><i class="bi bi-table me-2"></i>Transactions</h6>
+        <div class="d-flex align-items-center gap-2">
+          <button id="bulk-delete-btn" class="badge bg-danger border-0 d-none" type="button" style="padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700; line-height: 1;">
+            <i class="bi bi-trash me-1"></i><span id="bulk-delete-label">Delete</span>
+          </button>
+          <span class="badge bg-secondary" id="tx-count">{{ expense_month.transactions.count }}</span>
+        </div>
       </div>
-    </form>
-
-    {% with uploads=expense_month.csv_uploads.all %}
-    {% if uploads %}
-    <div class="mt-3">
-      <p class="text-muted small mb-2">Upload history</p>
-      <table class="table table-sm table-bordered mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Filename</th>
-            <th>Rows</th>
-            <th>Uploaded</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for upload in uploads %}
-          <tr>
-            <td class="text-truncate" style="max-width: 220px;">{{ upload.filename }}</td>
-            <td>{{ upload.row_count }}</td>
-            <td class="text-muted small text-nowrap">{{ upload.uploaded_at|date:"M j, Y g:i a" }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="card-body p-2">
+        <div id="transactionGrid" class="ag-theme-quartz" style="height: 700px;"></div>
+      </div>
     </div>
-    {% endif %}
-    {% endwith %}
+
+  </div>
+
+  <!-- Right — 25%: Upload -->
+  <div class="col-12 col-lg-3">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0"><i class="bi bi-cloud-upload me-2"></i>Upload CSV</h6>
+      </div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" action="{% url 'csv_upload' expense_month.pk %}">
+          {% csrf_token %}
+          <div class="d-flex gap-2 align-items-center">
+            <input type="file" name="csv_file" class="form-control" accept=".csv" multiple required>
+            <button type="submit" class="btn btn-primary text-nowrap">
+              <i class="bi bi-upload me-1"></i>Upload
+            </button>
+          </div>
+        </form>
+
+        {% with uploads=expense_month.csv_uploads.all %}
+        {% if uploads %}
+        <div class="mt-3">
+          <p class="text-muted small mb-2">Upload history</p>
+          <div style="overflow-x: auto;">
+          <table class="table table-sm table-bordered mb-0" style="min-width: max-content;">
+            <thead class="table-light">
+              <tr>
+                <th>Filename</th>
+                <th>Rows</th>
+                <th>Uploaded</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for upload in uploads %}
+              <tr>
+                <td class="text-truncate" style="max-width: 220px;">{{ upload.filename }}</td>
+                <td>{{ upload.row_count }}</td>
+                <td class="text-muted small text-nowrap">{{ upload.uploaded_at|date:"M j, Y g:i a" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          </div>
+        </div>
+        {% endif %}
+        {% endwith %}
+      </div>
+    </div>
+  </div>
+
+</div>
+<!-- Bulk Delete Confirmation Modal -->
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1" aria-labelledby="bulkDeleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="bulkDeleteModalLabel"><i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Delete Transactions</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        Are you sure you want to delete <strong id="bulk-delete-count"></strong> selected transaction(s)? This action cannot be undone.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="bulk-delete-confirm-btn">Delete</button>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- Transactions -->
-<div class="card">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <h6 class="mb-0"><i class="bi bi-table me-2"></i>Transactions</h6>
-    <span class="badge bg-secondary" id="tx-count">{{ expense_month.transactions.count }}</span>
-  </div>
-  <div class="card-body p-2">
-    <div id="transactionGrid" class="ag-theme-quartz" style="height: 500px;"></div>
-  </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -142,13 +179,58 @@
   const categorySelectValues = ['', ...categoriesData.map(c => c.name)];
   const nameToCatMap = Object.fromEntries(categoriesData.map(c => [c.name, c]));
 
+  // ── Currency formatter using browser locale ──────────────────────────────
+  function getCurrencyFromLocale(locale = navigator.language) {
+    // Map locales to their default currency codes
+    const currencyMap = {
+      'en-US': 'USD',
+      'en-GB': 'GBP',
+      'en-CA': 'CAD',
+      'en-AU': 'AUD',
+      'de-DE': 'EUR',
+      'de-AT': 'EUR',
+      'de-CH': 'CHF',
+      'fr-FR': 'EUR',
+      'it-IT': 'EUR',
+      'es-ES': 'EUR',
+      'ja-JP': 'JPY',
+      'zh-CN': 'CNY',
+      'in-IN': 'INR',
+      'pt-BR': 'BRL',
+      'ru-RU': 'RUB',
+    };
+
+    // Try exact locale match first
+    if (currencyMap[locale]) {
+      return currencyMap[locale];
+    }
+
+    // Try language-only match (e.g., 'en' from 'en-US')
+    const lang = locale.split('-')[0];
+    const langMatches = Object.entries(currencyMap).filter(([key]) => key.startsWith(lang + '-'));
+    if (langMatches.length > 0) {
+      return langMatches[0][1];
+    }
+
+    // Default to USD
+    return 'USD';
+  }
+
+  function formatCurrency(amount) {
+    const currency = getCurrencyFromLocale();
+    return new Intl.NumberFormat(navigator.language, {
+      style: 'currency',
+      currency: currency,
+    }).format(amount);
+  }
+
   // ── Summary card update ──────────────────────────────────────────────────
   function updateSummary(summary) {
-    document.getElementById('income-total').textContent = '£' + summary.income;
-    document.getElementById('expense-total').textContent = '£' + summary.expense;
+    document.getElementById('income-total').textContent = formatCurrency(summary.income);
+    document.getElementById('expense-total').textContent = formatCurrency(summary.expense);
     const netEl   = document.getElementById('net-balance');
     const netCard = document.getElementById('net-balance-card');
-    netEl.textContent = '£' + summary.net;
+    netEl.textContent = formatCurrency(summary.net);
     netEl.classList.remove('text-success', 'text-danger');
     netEl.classList.add(summary.net_positive ? 'text-success' : 'text-danger');
     netCard.classList.remove('border-success', 'border-danger');
@@ -167,47 +249,54 @@
     setTimeout(() => div.remove(), 5000);
   }
 
-  // ── Delete two-click state ────────────────────────────────────────────────
-  let pendingDeleteId = null;
+  // ── Bulk delete setup ──────────────────────────────────────────────────────
+  const bulkDeleteBtn       = document.getElementById('bulk-delete-btn');
+  const bulkDeleteLabel     = document.getElementById('bulk-delete-label');
+  const bulkDeleteCount     = document.getElementById('bulk-delete-count');
+  const bulkDeleteConfirmBtn = document.getElementById('bulk-delete-confirm-btn');
+  const bulkDeleteModalEl   = document.getElementById('bulkDeleteModal');
+  const bulkDeleteModal     = new bootstrap.Modal(bulkDeleteModalEl);
 
-  function deleteButtonRenderer(params) {
-    const txId = params.data.id;
-    const btn  = document.createElement('button');
-    if (pendingDeleteId === txId) {
-      btn.className   = 'btn btn-danger btn-sm py-0';
-      btn.textContent = 'Confirm? ✕';
+  function onSelectionChanged() {
+    const selected = gridApi.getSelectedRows();
+    const count = selected.length;
+    if (count > 0) {
+      bulkDeleteLabel.textContent = 'Delete (' + count + ')';
+      bulkDeleteBtn.classList.remove('d-none');
     } else {
-      btn.className   = 'btn btn-outline-danger btn-sm py-0';
-      btn.textContent = 'Delete';
+      bulkDeleteBtn.classList.add('d-none');
     }
-    btn.addEventListener('click', async () => {
-      if (pendingDeleteId !== txId) {
-        // First click — arm the confirm state
-        pendingDeleteId = txId;
-        gridApi.refreshCells({ force: true });
-      } else {
-        // Second click — execute delete
-        pendingDeleteId = null;
-        try {
-          const resp = await postJSON(
-            '/months/' + monthId + '/transactions/' + txId + '/delete/', {}
-          );
-          const data = await resp.json();
-          if (data.success) {
-            gridApi.applyTransaction({ remove: [params.data] });
-            updateSummary(data.summary);
-            const badge = document.getElementById('tx-count');
-            if (badge) badge.textContent = parseInt(badge.textContent, 10) - 1;
-          } else {
-            showError(data.error || 'Delete failed.');
-          }
-        } catch (e) {
-          showError('Network error during delete.');
-        }
-      }
-    });
-    return btn;
   }
+
+  bulkDeleteBtn.addEventListener('click', () => {
+    const count = gridApi.getSelectedRows().length;
+    bulkDeleteCount.textContent = count;
+    bulkDeleteModal.show();
+  });
+
+  bulkDeleteConfirmBtn.addEventListener('click', async () => {
+    const selectedRows = gridApi.getSelectedRows();
+    const ids = selectedRows.map(r => r.id);
+    bulkDeleteModal.hide();
+    try {
+      const resp = await postJSON(
+        '/months/' + monthId + '/transactions/bulk-delete/',
+        { ids }
+      );
+      const data = await resp.json();
+      if (data.success) {
+        gridApi.applyTransaction({ remove: selectedRows });
+        updateSummary(data.summary);
+        const badge = document.getElementById('tx-count');
+        if (badge) badge.textContent = parseInt(badge.textContent, 10) - data.deleted_count;
+        bulkDeleteBtn.classList.add('d-none');
+      } else {
+        showError(data.error || 'Delete failed.');
+      }
+    } catch (e) {
+      showError('Network error during delete.');
+    }
+  });
 
   // ── Cell value changed ────────────────────────────────────────────────────
   async function onCellValueChanged(params) {
@@ -264,7 +353,7 @@
       headerName: 'Amount',
       editable: true,
       cellEditor: 'agNumberCellEditor',
-      valueFormatter: params => (params.value != null ? '£' + parseFloat(params.value).toFixed(2) : ''),
+      valueFormatter: params => (params.value != null ? formatCurrency(parseFloat(params.value)) : ''),
       width: 115,
     },
     {
@@ -294,15 +383,31 @@
       valueFormatter: params => params.value || '—',
       width: 170,
     },
-    {
-      headerName: 'Actions',
-      sortable: false,
-      filter: false,
-      editable: false,
-      width: 120,
-      cellRenderer: deleteButtonRenderer,
-    },
   ];
+
+  // ── Initialize summary cards with formatted currency ───────────────────────
+  function initializeSummaryCards() {
+    const incomeEl = document.getElementById('income-total');
+    const expenseEl = document.getElementById('expense-total');
+    const netEl = document.getElementById('net-balance');
+
+    if (incomeEl.dataset.amount) {
+      incomeEl.textContent = formatCurrency(parseInt(incomeEl.dataset.amount));
+    }
+    if (expenseEl.dataset.amount) {
+      expenseEl.textContent = formatCurrency(parseInt(expenseEl.dataset.amount));
+    }
+    if (netEl.dataset.amount) {
+      netEl.textContent = formatCurrency(parseInt(netEl.dataset.amount));
+    }
+  }
+
+  // Call on page load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeSummaryCards);
+  } else {
+    initializeSummaryCards();
+  }
 
   // ── Grid initialisation ───────────────────────────────────────────────────
   const gridApi = agGrid.createGrid(
@@ -311,9 +416,16 @@
       columnDefs: columnDefs,
       rowData: transactionsData,
       getRowId: params => String(params.data.id),
+      rowSelection: {
+        mode: 'multiRow',
+        checkboxes: true,
+        headerCheckbox: true,
+        enableClickSelection: false,
+      },
       pagination: true,
       paginationPageSize: 100,
       onCellValueChanged: onCellValueChanged,
+      onSelectionChanged: onSelectionChanged,
       overlayNoRowsTemplate:
         '<span class="text-muted">No transactions yet — upload a CSV above.</span>',
       defaultColDef: {

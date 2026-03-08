@@ -35,6 +35,7 @@ urlpatterns = [
     path("months/<int:pk>/upload/", core_views.csv_upload_view, name="csv_upload"),
     path("months/<int:month_id>/transactions/<int:tx_id>/update/", core_views.transaction_update_view, name="transaction_update"),
     path("months/<int:month_id>/transactions/<int:tx_id>/delete/", core_views.transaction_delete_view, name="transaction_delete"),
+    path("months/<int:month_id>/transactions/bulk-delete/", core_views.transaction_bulk_delete_view, name="transaction_bulk_delete"),
     path("api/charts/monthly-totals/", core_views.chart_monthly_totals_view, name="chart_monthly_totals"),
     path("api/charts/category-breakdown/", core_views.chart_category_breakdown_view, name="chart_category_breakdown"),
     path("api/charts/top-categories/", core_views.chart_top_categories_view, name="chart_top_categories"),
