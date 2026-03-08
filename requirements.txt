@@ -7,3 +7,6 @@ django-stubs[compatible-mypy]
 django-stubs-ext
 ruff
 pre-commit
+vulture
+pylint
+semgrep

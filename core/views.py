@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import math
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -11,6 +12,7 @@ from django.db.models import Sum
 from django.db.models.functions import TruncMonth
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from .csv_parser import CSVParser
@@ -19,15 +21,13 @@ from .models import Category, CSVUpload, ExpenseMonth, Transaction, UserGridPref
 
 
 def _month_summary(month: ExpenseMonth) -> dict[str, int | bool]:
-    import math as _math
-
     income = month.total_income
     expenses = month.total_expenses
     net = month.net_balance
     return {
-        "income": _math.floor(income),
-        "expense": _math.floor(expenses),
-        "net": _math.floor(net),
+        "income": math.floor(income),
+        "expense": math.floor(expenses),
+        "net": math.floor(net),
         "net_positive": net >= 0,
     }
 
@@ -61,7 +61,8 @@ def signup_view(request: HttpRequest) -> HttpResponse:
 def login_view(request: HttpRequest) -> HttpResponse:
     if request.user.is_authenticated:
         return redirect("/")
-    next_url = request.GET.get("next", "/")
+    raw_next = request.GET.get("next", "/")
+    next_url = raw_next if url_has_allowed_host_and_scheme(raw_next, allowed_hosts={request.get_host()}) else "/"
     if request.method == "POST":
         form = LoginForm(request.POST, request=request)
         if form.is_valid():
@@ -107,7 +108,7 @@ def month_create_view(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def month_detail_view(request: HttpRequest, pk: int) -> HttpResponse:
-    GRID_COLUMNS = ["date", "description", "amount", "account", "transaction_type", "category_name"]
+    grid_columns = ["date", "description", "amount", "account", "transaction_type", "category_name"]
     expense_month = get_object_or_404(ExpenseMonth, pk=pk, user=request.user)
     transactions_data = [
         {
@@ -123,7 +124,7 @@ def month_detail_view(request: HttpRequest, pk: int) -> HttpResponse:
         for tx in expense_month.transactions.select_related("category").all()
     ]
     categories_data = [{"id": c.id, "name": c.name} for c in Category.objects.filter(user=request.user)]
-    defaults = {col: True for col in GRID_COLUMNS}
+    defaults = {col: True for col in grid_columns}
     defaults["account"] = False
     defaults["transaction_type"] = False
     pref, _ = UserGridPreference.objects.get_or_create(
@@ -145,7 +146,7 @@ def month_detail_view(request: HttpRequest, pk: int) -> HttpResponse:
 
 @login_required
 @require_POST
-def transaction_update_view(request: HttpRequest, month_id: int, tx_id: int) -> JsonResponse:  # noqa: C901
+def transaction_update_view(request: HttpRequest, month_id: int, tx_id: int) -> JsonResponse:  # noqa: C901, PLR0911, PLR0912
     month = get_object_or_404(ExpenseMonth, id=month_id, user=request.user)
     transaction = get_object_or_404(Transaction, id=tx_id, expense_month=month)
 
@@ -172,7 +173,7 @@ def transaction_update_view(request: HttpRequest, month_id: int, tx_id: int) -> 
                 {"success": False, "error": "Description cannot be empty.", "field": "description"},
                 status=400,
             )
-        if len(str(value)) > 500:
+        if len(str(value)) > 500:  # noqa: PLR2004
             return JsonResponse(
                 {"success": False, "error": "Description must be 500 characters or fewer.", "field": "description"},
                 status=400,
@@ -192,7 +193,7 @@ def transaction_update_view(request: HttpRequest, month_id: int, tx_id: int) -> 
         transaction.amount = dec
 
     elif field == "account":
-        if value and len(str(value)) > 200:
+        if value and len(str(value)) > 200:  # noqa: PLR2004
             return JsonResponse(
                 {"success": False, "error": "Account must be 200 characters or fewer.", "field": "account"},
                 status=400,
@@ -248,7 +249,7 @@ def transaction_delete_view(request: HttpRequest, month_id: int, tx_id: int) -> 
 @login_required
 @require_POST
 def update_grid_preferences_view(request: HttpRequest) -> JsonResponse:
-    GRID_COLUMNS = {"date", "description", "amount", "account", "transaction_type", "category_name"}
+    grid_columns = {"date", "description", "amount", "account", "transaction_type", "category_name"}
     try:
         body = json.loads(request.body)
     except (json.JSONDecodeError, ValueError):
@@ -259,12 +260,12 @@ def update_grid_preferences_view(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"success": False, "error": "column_visibility must be an object."}, status=400)
 
     # Validate: keys must be known column names, values must be booleans
-    if not set(column_visibility.keys()).issubset(GRID_COLUMNS):
+    if not set(column_visibility.keys()).issubset(grid_columns):
         return JsonResponse({"success": False, "error": "Unknown column name(s) in column_visibility."}, status=400)
     if not all(isinstance(v, bool) for v in column_visibility.values()):
         return JsonResponse({"success": False, "error": "column_visibility values must be booleans."}, status=400)
 
-    defaults = {col: True for col in GRID_COLUMNS}
+    defaults = {col: True for col in grid_columns}
     defaults["account"] = False
     defaults["transaction_type"] = False
     pref, _ = UserGridPreference.objects.get_or_create(
@@ -490,10 +491,7 @@ def chart_category_breakdown_view(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"labels": [], "series": [], "available_months": available_months})
 
     month_start = datetime.date(year, month, 1)
-    if month == 12:
-        month_end = datetime.date(year + 1, 1, 1)
-    else:
-        month_end = datetime.date(year, month + 1, 1)
+    month_end = datetime.date(year + 1, 1, 1) if month == 12 else datetime.date(year, month + 1, 1)  # noqa: PLR2004
 
     rows = (
         Transaction.objects.filter(
@@ -557,16 +555,13 @@ def chart_month_over_month_view(request: HttpRequest) -> JsonResponse:
     )
     recent_months = sorted([m for m in months_qs if m is not None])
 
-    if len(recent_months) < 2:
+    if len(recent_months) < 2:  # noqa: PLR2004
         return JsonResponse({"insufficient": True})
 
     all_categories: set[str] = set()
     month_data: dict[datetime.date, dict[str, float]] = {}
     for m in recent_months:
-        if m.month == 12:
-            next_month = datetime.date(m.year + 1, 1, 1)
-        else:
-            next_month = datetime.date(m.year, m.month + 1, 1)
+        next_month = datetime.date(m.year + 1, 1, 1) if m.month == 12 else datetime.date(m.year, m.month + 1, 1)  # noqa: PLR2004
 
         rows = (
             Transaction.objects.filter(

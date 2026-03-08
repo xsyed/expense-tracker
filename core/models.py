@@ -81,7 +81,7 @@ class Category(models.Model):
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
-def seed_default_categories(sender: type[User], instance: User, created: bool, **kwargs: Any) -> None:
+def seed_default_categories(_sender: type[User], instance: User, created: bool, **kwargs: Any) -> None:
     if created:
         Category.objects.bulk_create([Category(user=instance, name=name) for name in DEFAULT_CATEGORIES])
 

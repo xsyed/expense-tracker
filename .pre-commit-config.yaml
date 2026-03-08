@@ -17,3 +17,11 @@ repos:
           - django-crispy-forms
           - crispy-bootstrap5
         args: [--config-file=pyproject.toml]
+  - repo: local
+    hooks:
+      - id: full-check
+        name: Full quality gate
+        entry: make unused duplication modulesize security
+        language: system
+        pass_filenames: false
+        always_run: true

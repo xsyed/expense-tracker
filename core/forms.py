@@ -161,7 +161,8 @@ class ExpenseMonthCreateForm(forms.Form):
         return cleaned_data
 
     def save(self) -> ExpenseMonth:
-        assert self.user is not None
+        if self.user is None:
+            raise ValueError("save() called without a user")
         return ExpenseMonth.objects.create(
             user=self.user,
             label=self.cleaned_data["label"],

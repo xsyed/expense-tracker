@@ -174,7 +174,7 @@ class CSVParser:
         if not rows:
             return []
 
-        headers = [h for h in rows[0].keys() if h is not None]
+        headers = [h for h in rows[0] if h is not None]
         lh = [h.lower().strip() for h in headers]
 
         date_col = self._find_col(
@@ -238,7 +238,7 @@ class CSVParser:
             import pandas as pd  # type: ignore[import-untyped]  # noqa: PLC0415
 
             return cast(date, pd.to_datetime(s, dayfirst=False).date())
-        except Exception:
+        except Exception:  # noqa: S110
             pass
         return None
 
