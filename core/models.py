@@ -173,3 +173,15 @@ class CSVUpload(models.Model):
 
     def __str__(self):
         return f"{self.filename} ({self.row_count} rows)"
+
+
+class UserGridPreference(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='grid_preference',
+    )
+    column_visibility = models.JSONField(default=dict)
+
+    def __str__(self):
+        return f"Grid preference for {self.user}"

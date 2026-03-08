@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 
 from .csv_parser import CSVParser
 from .forms import CategoryForm, CSVUploadForm, ExpenseMonthCreateForm, ExpenseMonthEditForm, LoginForm, SignUpForm
-from .models import Category, CSVUpload, ExpenseMonth, Transaction
+from .models import Category, CSVUpload, ExpenseMonth, Transaction, UserGridPreference
 
 
 def _month_summary(month):
@@ -93,6 +93,7 @@ def month_create_view(request):
 
 @login_required
 def month_detail_view(request, pk):
+    GRID_COLUMNS = ['date', 'description', 'amount', 'account', 'transaction_type', 'category_name']
     expense_month = get_object_or_404(ExpenseMonth, pk=pk, user=request.user)
     transactions_data = [
         {
@@ -111,10 +112,17 @@ def month_detail_view(request, pk):
         {'id': c.id, 'name': c.name}
         for c in Category.objects.filter(user=request.user)
     ]
+    defaults = {col: True for col in GRID_COLUMNS}
+    pref, _ = UserGridPreference.objects.get_or_create(
+        user=request.user,
+        defaults={'column_visibility': defaults},
+    )
+    visibility = {**defaults, **pref.column_visibility}
     return render(request, "months/detail.html", {
         "expense_month": expense_month,
         "transactions_json": json.dumps(transactions_data),
         "categories_json": json.dumps(categories_data),
+        "column_visibility_json": json.dumps(visibility),
     })
 
 
@@ -197,6 +205,35 @@ def transaction_delete_view(request, month_id, tx_id):
     transaction = get_object_or_404(Transaction, id=tx_id, expense_month=month)
     transaction.delete()
     return JsonResponse({'success': True, 'summary': _month_summary(month)})
+
+
+@login_required
+@require_POST
+def update_grid_preferences_view(request):
+    GRID_COLUMNS = {'date', 'description', 'amount', 'account', 'transaction_type', 'category_name'}
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'Invalid request body.'}, status=400)
+
+    column_visibility = body.get('column_visibility')
+    if not isinstance(column_visibility, dict):
+        return JsonResponse({'success': False, 'error': 'column_visibility must be an object.'}, status=400)
+
+    # Validate: keys must be known column names, values must be booleans
+    if not set(column_visibility.keys()).issubset(GRID_COLUMNS):
+        return JsonResponse({'success': False, 'error': 'Unknown column name(s) in column_visibility.'}, status=400)
+    if not all(isinstance(v, bool) for v in column_visibility.values()):
+        return JsonResponse({'success': False, 'error': 'column_visibility values must be booleans.'}, status=400)
+
+    defaults = {col: True for col in GRID_COLUMNS}
+    pref, _ = UserGridPreference.objects.get_or_create(
+        user=request.user,
+        defaults={'column_visibility': defaults},
+    )
+    pref.column_visibility = {**defaults, **column_visibility}
+    pref.save()
+    return JsonResponse({'success': True})
 
 
 @login_required

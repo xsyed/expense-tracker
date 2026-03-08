@@ -146,6 +146,12 @@
   </div>
 </div>
 
+<!-- Column toggle dropdown (outside grid, positioned with JS) -->
+<div id="colToggleMenu" class="card shadow py-2 px-3"
+     style="display:none; position:fixed; z-index:9999; min-width:170px;">
+  <div class="small fw-semibold text-muted mb-2">Columns</div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -157,6 +163,8 @@
   const transactionsData = {{ transactions_json|safe }};
   const categoriesData   = {{ categories_json|safe }};
   const monthId          = {{ expense_month.pk }};
+  const columnVisibilityPrefs = {{ column_visibility_json|safe }};
+  const GRID_COLUMNS = ['date', 'description', 'amount', 'account', 'transaction_type', 'category_name'];
 
   // ── CSRF helper ──────────────────────────────────────────────────────────
   function getCsrfToken() {
@@ -331,8 +339,109 @@
     }
   }
 
+  // ── Column toggle header component ────────────────────────────────────────
+  class ColumnToggleHeader {
+    init(params) {
+      this._params = params;
+      this._btn = document.createElement('button');
+      this._btn.className = 'btn btn-sm p-0 border-0 bg-transparent';
+      this._btn.style.cssText = 'font-size:1rem; cursor:pointer; line-height:1;';
+      this._btn.textContent = '⚙️';
+      this._btn.title = 'Toggle columns';
+      this._btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showColMenu(e);
+      });
+    }
+    getGui() { return this._btn; }
+    refresh() { return true; }
+    destroy() {}
+  }
+
+  // ── Column dropdown ───────────────────────────────────────────────────────
+  const colMenu = document.getElementById('colToggleMenu');
+
+  function buildMenuCheckboxes() {
+    // Remove old checkboxes (keep the heading div)
+    Array.from(colMenu.querySelectorAll('.col-toggle-item')).forEach(el => el.remove());
+    const labels = {
+      date: 'Date',
+      description: 'Description',
+      amount: 'Amount',
+      account: 'Account',
+      transaction_type: 'Type',
+      category_name: 'Category',
+    };
+    GRID_COLUMNS.forEach(field => {
+      const col = gridApi.getColumn(field);
+      const visible = col ? col.isVisible() : true;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'col-toggle-item form-check mb-1';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'form-check-input';
+      cb.id = 'col-toggle-' + field;
+      cb.checked = visible;
+      cb.addEventListener('change', () => {
+        gridApi.setColumnsVisible([field], cb.checked);
+        saveGridPreferences();
+      });
+      const lbl = document.createElement('label');
+      lbl.className = 'form-check-label small';
+      lbl.htmlFor = 'col-toggle-' + field;
+      lbl.textContent = labels[field] || field;
+      wrapper.appendChild(cb);
+      wrapper.appendChild(lbl);
+      colMenu.appendChild(wrapper);
+    });
+  }
+
+  function showColMenu(e) {
+    buildMenuCheckboxes();
+    const rect = e.currentTarget.getBoundingClientRect();
+    colMenu.style.top  = (rect.bottom + 4) + 'px';
+    colMenu.style.left = rect.left + 'px';
+    colMenu.style.display = 'block';
+  }
+
+  document.addEventListener('click', (e) => {
+    if (colMenu.style.display !== 'none' && !colMenu.contains(e.target)) {
+      colMenu.style.display = 'none';
+    }
+  });
+
+  // ── Debounced save ────────────────────────────────────────────────────────
+  let saveTimer = null;
+  function saveGridPreferences() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      const visibility = {};
+      GRID_COLUMNS.forEach(f => {
+        const col = gridApi.getColumn(f);
+        visibility[f] = col ? col.isVisible() : true;
+      });
+      try {
+        await postJSON('/preferences/grid/', { column_visibility: visibility });
+      } catch (_) {
+        // Best-effort save; silently ignore network errors
+      }
+    }, 500);
+  }
+
   // ── Column definitions ────────────────────────────────────────────────────
   const columnDefs = [
+    {
+      colId: 'controls',
+      headerName: '',
+      headerComponent: ColumnToggleHeader,
+      pinned: 'left',
+      width: 46,
+      sortable: false,
+      filter: false,
+      resizable: false,
+      suppressMovable: true,
+      suppressHeaderMenuButton: true,
+    },
     {
       field: 'date',
       headerName: 'Date',
@@ -435,6 +544,11 @@
       },
     }
   );
+
+  // Apply saved column visibility
+  Object.entries(columnVisibilityPrefs).forEach(([field, visible]) => {
+    gridApi.setColumnsVisible([field], visible);
+  });
 })();
 </script>
 {% endblock %}

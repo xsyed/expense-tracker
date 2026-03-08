@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import Category, CSVUpload, ExpenseMonth, Transaction, User
+from .models import Category, CSVUpload, ExpenseMonth, Transaction, User, UserGridPreference
 
 
 @admin.register(User)
@@ -47,3 +47,9 @@ class CSVUploadAdmin(admin.ModelAdmin):
     list_display = ("expense_month", "filename", "row_count", "uploaded_at")
     list_filter = ("expense_month",)
     ordering = ("-uploaded_at",)
+
+
+@admin.register(UserGridPreference)
+class UserGridPreferenceAdmin(admin.ModelAdmin):
+    list_display = ("user", "column_visibility")
+    search_fields = ("user__email",)

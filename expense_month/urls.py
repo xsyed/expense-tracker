@@ -38,6 +38,7 @@ urlpatterns = [
     path("months/<int:month_id>/transactions/bulk-delete/", core_views.transaction_bulk_delete_view, name="transaction_bulk_delete"),
     path("api/charts/monthly-totals/", core_views.chart_monthly_totals_view, name="chart_monthly_totals"),
     path("api/charts/category-breakdown/", core_views.chart_category_breakdown_view, name="chart_category_breakdown"),
+    path("preferences/grid/", core_views.update_grid_preferences_view, name="grid_preferences_update"),
     path("api/charts/top-categories/", core_views.chart_top_categories_view, name="chart_top_categories"),
     path("api/charts/month-over-month/", core_views.chart_month_over_month_view, name="chart_mom"),
 ]
