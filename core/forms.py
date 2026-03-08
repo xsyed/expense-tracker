@@ -162,3 +162,26 @@ class ExpenseMonthEditForm(forms.ModelForm):
         widgets = {
             "label": forms.TextInput(attrs={"class": "form-control"}),
         }
+
+
+class _MultipleFileInput(forms.FileInput):
+    """FileInput subclass that supports the ``multiple`` HTML attribute."""
+    allow_multiple_selected = True
+
+
+class CSVUploadForm(forms.Form):
+    csv_file = forms.FileField(
+        widget=_MultipleFileInput(attrs={"accept": ".csv", "class": "form-control"}),
+        help_text="Select one or more .csv files to upload.",
+    )
+
+    def clean_csv_file(self):
+        files = self.files.getlist("csv_file")
+        if not files:
+            raise forms.ValidationError("Please select at least one CSV file.")
+        for f in files:
+            if not f.name.lower().endswith(".csv"):
+                raise forms.ValidationError(
+                    f'"{f.name}" is not a CSV file. Only .csv files are allowed.'
+                )
+        return files

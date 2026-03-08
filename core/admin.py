@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import Category, ExpenseMonth, User
+from .models import Category, CSVUpload, ExpenseMonth, Transaction, User
 
 
 @admin.register(User)
@@ -32,3 +32,18 @@ class CategoryAdmin(admin.ModelAdmin):
     list_filter = ("user",)
     search_fields = ("name", "user__email")
     ordering = ("user", "name")
+
+
+@admin.register(Transaction)
+class TransactionAdmin(admin.ModelAdmin):
+    list_display = ("expense_month", "date", "description", "amount", "transaction_type", "category")
+    list_filter = ("transaction_type", "expense_month")
+    search_fields = ("description",)
+    ordering = ("-date",)
+
+
+@admin.register(CSVUpload)
+class CSVUploadAdmin(admin.ModelAdmin):
+    list_display = ("expense_month", "filename", "row_count", "uploaded_at")
+    list_filter = ("expense_month",)
+    ordering = ("-uploaded_at",)

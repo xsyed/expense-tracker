@@ -104,13 +104,72 @@ class ExpenseMonth(models.Model):
 
     @property
     def total_income(self):
-        # Computed from transactions — populated in Phase 5
-        return 0
+        return self.transactions.filter(transaction_type='income').aggregate(
+            models.Sum('amount')
+        )['amount__sum'] or 0
 
     @property
     def total_expenses(self):
-        return 0
+        return self.transactions.filter(transaction_type='expense').aggregate(
+            models.Sum('amount')
+        )['amount__sum'] or 0
 
     @property
     def net_balance(self):
         return self.total_income - self.total_expenses
+
+
+class Transaction(models.Model):
+    TRANSACTION_TYPES = [
+        ('income', 'Income'),
+        ('expense', 'Expense'),
+        ('unassigned', 'Unassigned'),
+    ]
+
+    expense_month = models.ForeignKey(
+        ExpenseMonth,
+        on_delete=models.CASCADE,
+        related_name='transactions',
+    )
+    date = models.DateField()
+    description = models.CharField(max_length=500)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    account = models.CharField(max_length=200, blank=True, null=True)
+    transaction_type = models.CharField(
+        max_length=20,
+        choices=TRANSACTION_TYPES,
+        default='unassigned',
+    )
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='transactions',
+    )
+    source_file = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['date']
+
+    def __str__(self):
+        return f"{self.date} — {self.description} — ${self.amount}"
+
+
+class CSVUpload(models.Model):
+    expense_month = models.ForeignKey(
+        ExpenseMonth,
+        on_delete=models.CASCADE,
+        related_name='csv_uploads',
+    )
+    filename = models.CharField(max_length=200)
+    row_count = models.PositiveIntegerField()
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f"{self.filename} ({self.row_count} rows)"

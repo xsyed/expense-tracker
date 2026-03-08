@@ -32,4 +32,5 @@ urlpatterns = [
     path("months/<int:pk>/", core_views.month_detail_view, name="month_detail"),
     path("months/<int:pk>/edit/", core_views.month_edit_view, name="month_edit"),
     path("months/<int:pk>/delete/", core_views.month_delete_view, name="month_delete"),
+    path("months/<int:pk>/upload/", core_views.csv_upload_view, name="csv_upload"),
 ]

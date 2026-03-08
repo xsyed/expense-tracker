@@ -3,8 +3,9 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import CategoryForm, ExpenseMonthCreateForm, ExpenseMonthEditForm, LoginForm, SignUpForm
-from .models import Category, ExpenseMonth
+from .csv_parser import CSVParser
+from .forms import CategoryForm, CSVUploadForm, ExpenseMonthCreateForm, ExpenseMonthEditForm, LoginForm, SignUpForm
+from .models import Category, CSVUpload, ExpenseMonth, Transaction
 
 
 def signup_view(request):
@@ -98,6 +99,64 @@ def month_delete_view(request, pk):
         messages.success(request, f'Expense month "{label}" and all its data have been deleted.')
         return redirect("home")
     return render(request, "months/delete.html", {"expense_month": expense_month})
+
+
+@login_required
+def csv_upload_view(request, pk):
+    if request.method != "POST":
+        return redirect("month_detail", pk=pk)
+
+    expense_month = get_object_or_404(ExpenseMonth, pk=pk, user=request.user)
+    files = request.FILES.getlist("csv_file")
+
+    if not files:
+        messages.error(request, "No files were uploaded.")
+        return redirect("month_detail", pk=pk)
+
+    total_imported = 0
+
+    for f in files:
+        if not f.name.lower().endswith(".csv"):
+            messages.error(request, f'"{f.name}" is not a CSV file. Skipped.')
+            continue
+
+        rows, errors = CSVParser().parse(f, f.name)
+
+        if not rows and errors:
+            messages.error(request, f'"{f.name}": {errors[0]}')
+            continue
+
+        if rows:
+            Transaction.objects.bulk_create(
+                [
+                    Transaction(
+                        expense_month=expense_month,
+                        date=row["date"],
+                        description=row["description"],
+                        amount=row["amount"],
+                        account=row.get("account", ""),
+                        source_file=row.get("source_file", f.name),
+                    )
+                    for row in rows
+                ]
+            )
+            CSVUpload.objects.create(
+                expense_month=expense_month,
+                filename=f.name,
+                row_count=len(rows),
+            )
+            total_imported += len(rows)
+
+        if errors:
+            messages.warning(
+                request,
+                f'"{f.name}": {len(errors)} row(s) had errors and were skipped.',
+            )
+
+    if total_imported > 0:
+        messages.success(request, f"Successfully imported {total_imported} transaction(s).")
+
+    return redirect("month_detail", pk=pk)
 
 
 @login_required
