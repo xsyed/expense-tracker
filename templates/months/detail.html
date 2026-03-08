@@ -397,6 +397,10 @@
   }
 
   function showColMenu(e) {
+    if (colMenu.style.display === 'block') {
+      colMenu.style.display = 'none';
+      return;
+    }
     buildMenuCheckboxes();
     const rect = e.currentTarget.getBoundingClientRect();
     colMenu.style.top  = (rect.bottom + 4) + 'px';

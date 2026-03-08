@@ -113,6 +113,8 @@ def month_detail_view(request, pk):
         for c in Category.objects.filter(user=request.user)
     ]
     defaults = {col: True for col in GRID_COLUMNS}
+    defaults['account'] = False
+    defaults['transaction_type'] = False
     pref, _ = UserGridPreference.objects.get_or_create(
         user=request.user,
         defaults={'column_visibility': defaults},
@@ -227,6 +229,8 @@ def update_grid_preferences_view(request):
         return JsonResponse({'success': False, 'error': 'column_visibility values must be booleans.'}, status=400)
 
     defaults = {col: True for col in GRID_COLUMNS}
+    defaults['account'] = False
+    defaults['transaction_type'] = False
     pref, _ = UserGridPreference.objects.get_or_create(
         user=request.user,
         defaults={'column_visibility': defaults},
