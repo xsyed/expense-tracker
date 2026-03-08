@@ -92,3 +92,10 @@ The pre-commit config (`.pre-commit-config.yaml`) runs:
 All hooks must pass before a commit lands. If they fail, fix the root cause — do not bypass with `--no-verify`.
 
 SUPER CRITICAL: You have to run make check before completing a task, but the pre-commit hooks are an additional safety net to catch anything you missed. Do not disable or bypass them.
+
+## Comment Strategy:
+
+* **Minimize Comments:** Do not add comments for self-explanatory code (e.g., standard variable assignments, obvious loops, or boilerplate).
+* **Code as Documentation:** Prioritize expressive naming for variables and functions over adding descriptive comments.
+* **Exception Rule:** Only provide comments for "Why," not "What." Use them exclusively for non-obvious business logic, complex algorithms ($O(n \log n)$ or higher), or technical debt workarounds.
+* **Formatting:** If a comment is necessary, keep it to a single line above the relevant code.

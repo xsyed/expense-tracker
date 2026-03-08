@@ -18,39 +18,54 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
-from core import views as core_views
+from core.views_auth import home_view
+from core.views_categories import category_delete_view, category_edit_view, category_list_view
+from core.views_charts import (
+    chart_category_breakdown_view,
+    chart_month_over_month_view,
+    chart_monthly_totals_view,
+    chart_top_categories_view,
+)
+from core.views_csv import csv_upload_view
+from core.views_months import month_create_view, month_delete_view, month_detail_view, month_edit_view, month_list_view
+from core.views_transactions import (
+    transaction_bulk_delete_view,
+    transaction_delete_view,
+    transaction_update_view,
+    update_grid_preferences_view,
+)
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("auth/", include("core.urls")),
-    path("", core_views.home_view, name="home"),
-    path("categories/", core_views.category_list_view, name="category_list"),
-    path("categories/<int:pk>/edit/", core_views.category_edit_view, name="category_edit"),
-    path("categories/<int:pk>/delete/", core_views.category_delete_view, name="category_delete"),
-    path("months/", core_views.month_list_view, name="month_list"),
-    path("months/create/", core_views.month_create_view, name="month_create"),
-    path("months/<int:pk>/", core_views.month_detail_view, name="month_detail"),
-    path("months/<int:pk>/edit/", core_views.month_edit_view, name="month_edit"),
-    path("months/<int:pk>/delete/", core_views.month_delete_view, name="month_delete"),
-    path("months/<int:pk>/upload/", core_views.csv_upload_view, name="csv_upload"),
+    path("", home_view, name="home"),
+    path("categories/", category_list_view, name="category_list"),
+    path("categories/<int:pk>/edit/", category_edit_view, name="category_edit"),
+    path("categories/<int:pk>/delete/", category_delete_view, name="category_delete"),
+    path("months/", month_list_view, name="month_list"),
+    path("months/create/", month_create_view, name="month_create"),
+    path("months/<int:pk>/", month_detail_view, name="month_detail"),
+    path("months/<int:pk>/edit/", month_edit_view, name="month_edit"),
+    path("months/<int:pk>/delete/", month_delete_view, name="month_delete"),
+    path("months/<int:pk>/upload/", csv_upload_view, name="csv_upload"),
     path(
         "months/<int:month_id>/transactions/<int:tx_id>/update/",
-        core_views.transaction_update_view,
+        transaction_update_view,
         name="transaction_update",
     ),
     path(
         "months/<int:month_id>/transactions/<int:tx_id>/delete/",
-        core_views.transaction_delete_view,
+        transaction_delete_view,
         name="transaction_delete",
     ),
     path(
         "months/<int:month_id>/transactions/bulk-delete/",
-        core_views.transaction_bulk_delete_view,
+        transaction_bulk_delete_view,
         name="transaction_bulk_delete",
     ),
-    path("api/charts/monthly-totals/", core_views.chart_monthly_totals_view, name="chart_monthly_totals"),
-    path("api/charts/category-breakdown/", core_views.chart_category_breakdown_view, name="chart_category_breakdown"),
-    path("preferences/grid/", core_views.update_grid_preferences_view, name="grid_preferences_update"),
-    path("api/charts/top-categories/", core_views.chart_top_categories_view, name="chart_top_categories"),
-    path("api/charts/month-over-month/", core_views.chart_month_over_month_view, name="chart_mom"),
+    path("api/charts/monthly-totals/", chart_monthly_totals_view, name="chart_monthly_totals"),
+    path("api/charts/category-breakdown/", chart_category_breakdown_view, name="chart_category_breakdown"),
+    path("preferences/grid/", update_grid_preferences_view, name="grid_preferences_update"),
+    path("api/charts/top-categories/", chart_top_categories_view, name="chart_top_categories"),
+    path("api/charts/month-over-month/", chart_month_over_month_view, name="chart_mom"),
 ]

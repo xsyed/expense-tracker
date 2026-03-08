@@ -7,7 +7,7 @@ import ast
 import sys
 from pathlib import Path
 
-MAX_LINES = 600  # hard ceiling — target is 500, then 400 (see split_files_plan.md)
+MAX_LINES = 500  # hard ceiling — target is 400 (see split_files_plan.md)
 MAX_IMPORTS = 20
 SEARCH_DIRS = ["core", "expense_month"]
 SKIP_DIRS = {"migrations", "__pycache__"}

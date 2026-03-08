@@ -6,6 +6,8 @@ Covers all 10 AC items from phases/phase-1-foundation-auth.md
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
+from core.models import DEFAULT_CATEGORIES
+
 User = get_user_model()
 
 
@@ -82,6 +84,18 @@ class LoginTests(TestCase):
             },
         )
         self.assertRedirects(response, "/", fetch_redirect_response=False)
+
+    def test_login_does_not_duplicate_default_categories(self):
+        response = self.client.post(
+            "/auth/login/",
+            {
+                "email": "user@example.com",
+                "password": "CorrectPass123!",
+            },
+        )
+
+        self.assertRedirects(response, "/", fetch_redirect_response=False)
+        self.assertEqual(self.user.categories.count(), len(DEFAULT_CATEGORIES))
 
     def test_wrong_password_shows_generic_error(self):
         """AC 6"""
