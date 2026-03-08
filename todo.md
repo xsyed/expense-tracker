@@ -7,4 +7,4 @@
 - [x] **Phase 3** — Expense Month Management → [phases/phase-3-expense-month-management.md](phases/phase-3-expense-month-management.md)
 - [x] **Phase 4** — CSV Upload & Parsing Engine → [phases/phase-4-csv-upload-parsing.md](phases/phase-4-csv-upload-parsing.md)
 - [x] **Phase 5** — Transaction Table & Inline Editing → [phases/phase-5-transaction-table-inline-editing.md](phases/phase-5-transaction-table-inline-editing.md)
-- [ ] **Phase 6** — Dashboard Analytics & Charts → [phases/phase-6-dashboard-analytics-charts.md](phases/phase-6-dashboard-analytics-charts.md)
+- [x] **Phase 6** — Dashboard Analytics & Charts → [phases/phase-6-dashboard-analytics-charts.md](phases/phase-6-dashboard-analytics-charts.md)

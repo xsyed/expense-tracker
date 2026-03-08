@@ -66,12 +66,286 @@
 </div>
 {% endif %}
 
-<!-- Dashboard charts placeholder (Phase 6) -->
-<div class="card border-dashed" style="border: 2px dashed #dee2e6;">
-  <div class="card-body text-center py-4 text-muted">
-    <i class="bi bi-bar-chart-line display-5 mb-2"></i>
-    <h6 class="mb-1">Analytics &amp; Charts</h6>
-    <p class="small mb-0">Dashboard charts coming in Phase 6.</p>
+<!-- Analytics & Charts -->
+<section id="analytics-section">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Analytics &amp; Insights</h4>
+    <div class="btn-group" role="group" aria-label="Date range">
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-range="3">3M</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm active" data-range="6">6M</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-range="12">12M</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-range="all">All</button>
+    </div>
   </div>
-</div>
+
+  <!-- Chart 1: Income vs Expense Grouped Bar -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold">Income vs Expense</div>
+        <div class="card-body">
+          <div id="chart1"></div>
+          <div id="chart1-empty" class="d-none text-center text-muted py-4"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart 3 (Spending Trend) + Chart 2 (Category Donut) -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-md-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header fw-semibold">Spending Trend</div>
+        <div class="card-body">
+          <div id="chart3"></div>
+          <div id="chart3-empty" class="d-none text-center text-muted py-4"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="fw-semibold">Category Breakdown</span>
+          <select id="chart2-month-select" class="form-select form-select-sm w-auto"></select>
+        </div>
+        <div class="card-body">
+          <div id="chart2"></div>
+          <div id="chart2-empty" class="d-none text-center text-muted py-4"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart 4 (Top Categories) + Chart 5 (Month-over-Month) -->
+  <div class="row g-3">
+    <div class="col-12 col-md-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header fw-semibold">Top Categories</div>
+        <div class="card-body">
+          <div id="chart4"></div>
+          <div id="chart4-empty" class="d-none text-center text-muted py-4"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header fw-semibold">Month-over-Month</div>
+        <div class="card-body">
+          <div id="chart5"></div>
+          <div id="chart5-empty" class="d-none text-center text-muted py-4"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@5/dist/apexcharts.min.js"></script>
+<script>
+  var currentRange = 6;
+  var chart2Month = null;
+  var chart1 = null, chart2 = null, chart3 = null, chart4 = null, chart5 = null;
+
+  function showEmpty(id, msg) {
+    var emptyEl = document.getElementById(id + '-empty');
+    var chartEl = document.getElementById(id);
+    if (emptyEl) { emptyEl.textContent = msg; emptyEl.classList.remove('d-none'); }
+    if (chartEl) chartEl.classList.add('d-none');
+  }
+
+  function hideEmpty(id) {
+    var emptyEl = document.getElementById(id + '-empty');
+    var chartEl = document.getElementById(id);
+    if (emptyEl) emptyEl.classList.add('d-none');
+    if (chartEl) chartEl.classList.remove('d-none');
+  }
+
+  function destroyChart(instance) {
+    if (instance) { try { instance.destroy(); } catch (e) {} }
+  }
+
+  function initChart1(data) {
+    destroyChart(chart1); chart1 = null;
+    if (!data.labels || data.labels.length === 0) {
+      showEmpty('chart1', 'No income or expense data available for this period.');
+      return;
+    }
+    hideEmpty('chart1');
+    chart1 = new ApexCharts(document.getElementById('chart1'), {
+      chart: { type: 'bar', height: 320, toolbar: { show: false } },
+      series: [
+        { name: 'Income', data: data.income },
+        { name: 'Expense', data: data.expense }
+      ],
+      xaxis: { categories: data.labels },
+      colors: ['#28a745', '#dc3545'],
+      plotOptions: { bar: { columnWidth: '65%' } },
+      dataLabels: { enabled: false },
+      tooltip: { y: { formatter: function (v) { return '$' + Number(v).toFixed(2); } } },
+      legend: { position: 'top' }
+    });
+    chart1.render();
+  }
+
+  function initChart2(data) {
+    destroyChart(chart2); chart2 = null;
+    var select = document.getElementById('chart2-month-select');
+    if (select && select.options.length === 0 && data.available_months && data.available_months.length > 0) {
+      data.available_months.forEach(function (m) {
+        var opt = document.createElement('option');
+        opt.value = m;
+        var parts = m.split('-');
+        var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+        opt.textContent = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        select.appendChild(opt);
+      });
+      if (chart2Month) select.value = chart2Month;
+    }
+    var total = data.series ? data.series.reduce(function (a, b) { return a + b; }, 0) : 0;
+    if (!data.series || data.series.length === 0 || total === 0) {
+      showEmpty('chart2', 'No expense data for the selected month.');
+      return;
+    }
+    hideEmpty('chart2');
+    chart2 = new ApexCharts(document.getElementById('chart2'), {
+      chart: { type: 'donut', height: 320 },
+      series: data.series,
+      labels: data.labels,
+      tooltip: {
+        y: {
+          formatter: function (v) {
+            var pct = total > 0 ? ((v / total) * 100).toFixed(1) : 0;
+            return '$' + Number(v).toFixed(2) + ' (' + pct + '%)';
+          }
+        }
+      },
+      legend: { position: 'bottom' },
+      dataLabels: { enabled: false }
+    });
+    chart2.render();
+  }
+
+  function initChart3(data) {
+    destroyChart(chart3); chart3 = null;
+    if (!data.labels || data.labels.length < 2) {
+      showEmpty('chart3', 'At least 2 months of data needed to show the spending trend.');
+      return;
+    }
+    hideEmpty('chart3');
+    chart3 = new ApexCharts(document.getElementById('chart3'), {
+      chart: { type: 'line', height: 320, toolbar: { show: false } },
+      series: [{ name: 'Expense', data: data.expense }],
+      xaxis: { categories: data.labels },
+      colors: ['#dc3545'],
+      stroke: { curve: 'smooth', width: 2 },
+      dataLabels: { enabled: false },
+      tooltip: { y: { formatter: function (v) { return '$' + Number(v).toFixed(2); } } }
+    });
+    chart3.render();
+  }
+
+  function initChart4(data) {
+    destroyChart(chart4); chart4 = null;
+    if (!data.labels || data.labels.length === 0) {
+      showEmpty('chart4', 'No categorized expenses found for this period.');
+      return;
+    }
+    hideEmpty('chart4');
+    chart4 = new ApexCharts(document.getElementById('chart4'), {
+      chart: { type: 'bar', height: 320, toolbar: { show: false } },
+      series: [{ name: 'Total', data: data.totals }],
+      xaxis: { categories: data.labels },
+      plotOptions: { bar: { horizontal: true, barHeight: '60%' } },
+      colors: ['#fd7e14'],
+      dataLabels: { enabled: false },
+      tooltip: {
+        y: {
+          formatter: function (v, opts) {
+            var pct = data.percentages[opts.dataPointIndex];
+            return '$' + Number(v).toFixed(2) + ' (' + pct + '%)';
+          }
+        }
+      }
+    });
+    chart4.render();
+  }
+
+  function initChart5(data) {
+    destroyChart(chart5); chart5 = null;
+    if (data.insufficient) {
+      showEmpty('chart5', 'At least 2 months of expense data needed for month-over-month comparison.');
+      return;
+    }
+    hideEmpty('chart5');
+    chart5 = new ApexCharts(document.getElementById('chart5'), {
+      chart: { type: 'bar', height: 320, stacked: true, toolbar: { show: false } },
+      series: data.series,
+      xaxis: { categories: data.months },
+      dataLabels: { enabled: false },
+      tooltip: { y: { formatter: function (v) { return '$' + Number(v).toFixed(2); } } },
+      legend: { position: 'bottom' },
+      plotOptions: { bar: { columnWidth: '50%' } }
+    });
+    chart5.render();
+  }
+
+  function refreshAllCharts() {
+    var range = currentRange === 'all' ? 'all' : currentRange;
+
+    fetch('/api/charts/monthly-totals/?months=' + range)
+      .then(function (r) { return r.json(); })
+      .then(function (data) { initChart1(data); initChart3(data); })
+      .catch(function () {
+        showEmpty('chart1', 'Failed to load chart data.');
+        showEmpty('chart3', 'Failed to load chart data.');
+      });
+
+    var monthParam = chart2Month ? '?month=' + chart2Month : '';
+    fetch('/api/charts/category-breakdown/' + monthParam)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!chart2Month && data.available_months && data.available_months.length > 0) {
+          chart2Month = data.available_months[0];
+        }
+        initChart2(data);
+      })
+      .catch(function () { showEmpty('chart2', 'Failed to load chart data.'); });
+
+    fetch('/api/charts/top-categories/?months=' + range + '&limit=5')
+      .then(function (r) { return r.json(); })
+      .then(function (data) { initChart4(data); })
+      .catch(function () { showEmpty('chart4', 'Failed to load chart data.'); });
+
+    fetch('/api/charts/month-over-month/')
+      .then(function (r) { return r.json(); })
+      .then(function (data) { initChart5(data); })
+      .catch(function () { showEmpty('chart5', 'Failed to load chart data.'); });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('[data-range]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('[data-range]').forEach(function (b) { b.classList.remove('active'); });
+        this.classList.add('active');
+        var val = this.dataset.range;
+        currentRange = val === 'all' ? 'all' : parseInt(val);
+        refreshAllCharts();
+      });
+    });
+
+    var chart2Select = document.getElementById('chart2-month-select');
+    if (chart2Select) {
+      chart2Select.addEventListener('change', function () {
+        chart2Month = this.value;
+        fetch('/api/charts/category-breakdown/?month=' + chart2Month)
+          .then(function (r) { return r.json(); })
+          .then(function (data) { initChart2(data); })
+          .catch(function () { showEmpty('chart2', 'Failed to load chart data.'); });
+      });
+    }
+
+    refreshAllCharts();
+  });
+</script>
 {% endblock %}
