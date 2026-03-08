@@ -2,8 +2,9 @@
 Phase 1 acceptance criteria tests.
 Covers all 10 AC items from phases/phase-1-foundation-auth.md
 """
-from django.test import TestCase
+
 from django.contrib.auth import get_user_model
+from django.test import TestCase
 
 User = get_user_model()
 
@@ -21,11 +22,14 @@ class SignUpTests(TestCase):
 
     def test_valid_signup_creates_user_and_logs_in(self):
         """AC 2"""
-        response = self.client.post("/auth/signup/", {
-            "email": "test@example.com",
-            "password1": "StrongPass123!",
-            "password2": "StrongPass123!",
-        })
+        response = self.client.post(
+            "/auth/signup/",
+            {
+                "email": "test@example.com",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+        )
         self.assertRedirects(response, "/", fetch_redirect_response=False)
         self.assertTrue(User.objects.filter(email="test@example.com").exists())
         # user is now logged in — home returns 200
@@ -35,22 +39,28 @@ class SignUpTests(TestCase):
     def test_duplicate_email_shows_error(self):
         """AC 3"""
         User.objects.create_user(email="existing@example.com", password="StrongPass123!")
-        response = self.client.post("/auth/signup/", {
-            "email": "existing@example.com",
-            "password1": "StrongPass123!",
-            "password2": "StrongPass123!",
-        })
+        response = self.client.post(
+            "/auth/signup/",
+            {
+                "email": "existing@example.com",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+        )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "already exists")
         self.assertEqual(User.objects.filter(email="existing@example.com").count(), 1)
 
     def test_mismatched_passwords_shows_error(self):
         """AC 4"""
-        response = self.client.post("/auth/signup/", {
-            "email": "new@example.com",
-            "password1": "StrongPass123!",
-            "password2": "WrongPass456!",
-        })
+        response = self.client.post(
+            "/auth/signup/",
+            {
+                "email": "new@example.com",
+                "password1": "StrongPass123!",
+                "password2": "WrongPass456!",
+            },
+        )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "do not match")
         self.assertFalse(User.objects.filter(email="new@example.com").exists())
@@ -64,27 +74,36 @@ class LoginTests(TestCase):
 
     def test_valid_login_redirects_to_home(self):
         """AC 5"""
-        response = self.client.post("/auth/login/", {
-            "email": "user@example.com",
-            "password": "CorrectPass123!",
-        })
+        response = self.client.post(
+            "/auth/login/",
+            {
+                "email": "user@example.com",
+                "password": "CorrectPass123!",
+            },
+        )
         self.assertRedirects(response, "/", fetch_redirect_response=False)
 
     def test_wrong_password_shows_generic_error(self):
         """AC 6"""
-        response = self.client.post("/auth/login/", {
-            "email": "user@example.com",
-            "password": "WrongPassword!",
-        })
+        response = self.client.post(
+            "/auth/login/",
+            {
+                "email": "user@example.com",
+                "password": "WrongPassword!",
+            },
+        )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Invalid email or password")
 
     def test_unknown_email_shows_generic_error(self):
         """AC 6 — unknown email must not reveal which field is wrong"""
-        response = self.client.post("/auth/login/", {
-            "email": "nobody@example.com",
-            "password": "SomePass123!",
-        })
+        response = self.client.post(
+            "/auth/login/",
+            {
+                "email": "nobody@example.com",
+                "password": "SomePass123!",
+            },
+        )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Invalid email or password")
 
@@ -135,11 +154,15 @@ class TemplateRenderTests(TestCase):
 
     def test_flash_message_shown_after_signup(self):
         """AC 10 — success flash shown after account creation"""
-        response = self.client.post("/auth/signup/", {
-            "email": "flash@example.com",
-            "password1": "StrongPass123!",
-            "password2": "StrongPass123!",
-        }, follow=True)
+        response = self.client.post(
+            "/auth/signup/",
+            {
+                "email": "flash@example.com",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+            follow=True,
+        )
         self.assertContains(response, "Account created successfully")
 
     def test_flash_message_shown_after_logout(self):

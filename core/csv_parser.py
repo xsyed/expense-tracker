@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import csv
 import io
 import re
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
+from typing import IO, Any, cast
 
 
 class CSVParser:
@@ -23,7 +26,7 @@ class CSVParser:
         "%d %b %Y",
     ]
 
-    def parse(self, file_obj, filename):
+    def parse(self, file_obj: IO[bytes], filename: str) -> tuple[list[dict[str, Any]], list[str]]:
         """
         Parse a CSV file object and return (rows, errors).
 
@@ -84,24 +87,21 @@ class CSVParser:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _read_csv(self, file_obj):
-        raw = file_obj.read() if hasattr(file_obj, "read") else file_obj
-        if isinstance(raw, bytes):
-            for encoding in ("utf-8-sig", "utf-8", "latin-1"):
-                try:
-                    text = raw.decode(encoding)
-                    break
-                except UnicodeDecodeError:
-                    continue
-            else:
-                text = raw.decode("latin-1", errors="replace")
+    def _read_csv(self, file_obj: IO[bytes]) -> list[dict[str, str]]:
+        raw: bytes = file_obj.read()
+        for encoding in ("utf-8-sig", "utf-8", "latin-1"):
+            try:
+                text: str = raw.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
         else:
-            text = raw
+            text = raw.decode("latin-1", errors="replace")
 
         reader = csv.DictReader(io.StringIO(text))
         return list(reader)
 
-    def _detect_format(self, headers):
+    def _detect_format(self, headers: list[str]) -> str:
         lower = {h.lower().strip() for h in headers if h is not None}
 
         if "card member" in lower or "extended details" in lower:
@@ -112,7 +112,7 @@ class CSVParser:
             return "standard"
         return "generic"
 
-    def _normalize_columns(self, rows, format_type, filename):
+    def _normalize_columns(self, rows: list[dict[str, str]], format_type: str, filename: str) -> list[dict[str, Any]]:
         dispatch = {
             "standard": self._standard_normalize,
             "amex": lambda r: self._amex_normalize(r, filename),
@@ -122,11 +122,11 @@ class CSVParser:
         return dispatch[format_type](rows)
 
     @staticmethod
-    def _row_lower(row):
+    def _row_lower(row: dict[str, str]) -> dict[str, str]:
         """Return a dict with all keys lower-stripped, skipping None keys."""
         return {k.lower().strip(): v for k, v in row.items() if k is not None}
 
-    def _standard_normalize(self, rows):
+    def _standard_normalize(self, rows: list[dict[str, str]]) -> list[dict[str, Any]]:
         result = []
         for row in rows:
             lr = self._row_lower(row)
@@ -140,7 +140,7 @@ class CSVParser:
             )
         return result
 
-    def _amex_normalize(self, rows, filename):
+    def _amex_normalize(self, rows: list[dict[str, str]], filename: str) -> list[dict[str, Any]]:
         # AMEX CSVs have no account column — derive from filename stem
         account = Path(filename).stem
         result = []
@@ -156,7 +156,7 @@ class CSVParser:
             )
         return result
 
-    def _td_bank_normalize(self, rows):
+    def _td_bank_normalize(self, rows: list[dict[str, str]]) -> list[dict[str, Any]]:
         result = []
         for row in rows:
             lr = self._row_lower(row)
@@ -170,15 +170,21 @@ class CSVParser:
             )
         return result
 
-    def _generic_normalize(self, rows):
+    def _generic_normalize(self, rows: list[dict[str, str]]) -> list[dict[str, Any]]:
         if not rows:
             return []
 
         headers = [h for h in rows[0].keys() if h is not None]
         lh = [h.lower().strip() for h in headers]
 
-        date_col = self._find_col(lh, headers, ["date", "transaction date", "posted date", "trans date", "trans. date", "value date"])
-        desc_col = self._find_col(lh, headers, ["description", "payee", "merchant", "memo", "details", "narrative", "particulars", "transaction details"])
+        date_col = self._find_col(
+            lh, headers, ["date", "transaction date", "posted date", "trans date", "trans. date", "value date"]
+        )
+        desc_col = self._find_col(
+            lh,
+            headers,
+            ["description", "payee", "merchant", "memo", "details", "narrative", "particulars", "transaction details"],
+        )
         account_col = self._find_col(lh, headers, ["account", "account number", "account name", "account no"])
         amount_col = self._find_col(lh, headers, ["amount", "transaction amount", "value", "net amount"])
         debit_col = self._find_col(lh, headers, ["debit", "debit amount", "withdrawals", "withdrawal", "dr"])
@@ -186,8 +192,7 @@ class CSVParser:
 
         if date_col is None and desc_col is None and amount_col is None and debit_col is None:
             raise ValueError(
-                "Could not identify required columns (date, description, amount). "
-                "Please use a supported CSV format."
+                "Could not identify required columns (date, description, amount). Please use a supported CSV format."
             )
 
         result = []
@@ -207,7 +212,7 @@ class CSVParser:
             )
         return result
 
-    def _find_col(self, lower_headers, original_headers, candidates):
+    def _find_col(self, lower_headers: list[str], original_headers: list[str], candidates: list[str]) -> str | None:
         """Exact match first, then substring fallback."""
         for candidate in candidates:
             for i, h in enumerate(lower_headers):
@@ -219,7 +224,7 @@ class CSVParser:
                     return original_headers[i]
         return None
 
-    def _parse_date(self, s):
+    def _parse_date(self, s: str) -> date | None:
         if not s or not str(s).strip():
             return None
         s = str(s).strip()
@@ -230,13 +235,14 @@ class CSVParser:
                 continue
         # Last-resort: pandas.to_datetime
         try:
-            import pandas as pd  # noqa: PLC0415
-            return pd.to_datetime(s, dayfirst=False).date()
+            import pandas as pd  # type: ignore[import-untyped]  # noqa: PLC0415
+
+            return cast(date, pd.to_datetime(s, dayfirst=False).date())
         except Exception:
             pass
         return None
 
-    def _parse_amount(self, s):
+    def _parse_amount(self, s: str | None) -> float:
         if s is None:
             raise ValueError("missing amount")
         s = str(s).strip()
@@ -252,9 +258,10 @@ class CSVParser:
             val = -val
         return abs(val)
 
-    def _combine_debit_credit(self, row, debit_col, credit_col):
+    def _combine_debit_credit(self, row: dict[str, str], debit_col: str, credit_col: str) -> str:
         """Return net amount string (credit − debit) for rows with split columns."""
-        def _safe_parse(v):
+
+        def _safe_parse(v: object) -> float:
             try:
                 return self._parse_amount(str(v or "").strip()) if str(v or "").strip() else 0.0
             except (ValueError, TypeError):

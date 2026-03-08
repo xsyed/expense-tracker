@@ -1,0 +1,49 @@
+[tool.mypy]
+plugins = ["mypy_django_plugin.main"]
+strict = true
+python_version = "3.9"
+mypy_path = "."
+
+[[tool.mypy.overrides]]
+module = "*.migrations.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "core.migrations.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "manage"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "core.tests"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+# request.user is Union[User,AnonymousUser] but @login_required guarantees User
+# django-stubs cannot narrow the type through decorators — suppress affected codes
+module = "core.views"
+disable_error_code = ["misc", "arg-type", "assignment"]
+
+[tool.django-stubs]
+django_settings_module = "expense_month.settings"
+strict_settings = true
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "C90", "B", "ANN", "DJ"]
+ignore = ["ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+"core/tests.py" = ["ANN"]
+"core/migrations/*" = ["ALL"]
+"manage.py" = ["ANN"]
+"expense_month/wsgi.py" = ["ANN"]
+"expense_month/asgi.py" = ["ANN"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10

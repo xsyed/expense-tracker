@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 import datetime
+from typing import Any, cast
 
 from django import forms
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.http import HttpRequest
 
 from .models import Category, ExpenseMonth
+from .models import User as UserModel
 
 User = get_user_model()
 
@@ -22,14 +27,15 @@ class SignUpForm(forms.Form):
         widget=forms.PasswordInput(attrs={"placeholder": "Confirm password"}),
     )
 
-    def clean_email(self):
-        email = self.cleaned_data["email"].lower()
+    def clean_email(self) -> str:
+        email: str = self.cleaned_data["email"]
+        email = email.lower()
         if User.objects.filter(email=email).exists():
             raise forms.ValidationError("An account with this email already exists.")
         return email
 
-    def clean(self):
-        cleaned_data = super().clean()
+    def clean(self) -> dict[str, Any]:
+        cleaned_data: dict[str, Any] = super().clean() or {}
         password1 = cleaned_data.get("password1")
         password2 = cleaned_data.get("password2")
         if password1 and password2 and password1 != password2:
@@ -41,7 +47,7 @@ class SignUpForm(forms.Form):
                 self.add_error("password1", e)
         return cleaned_data
 
-    def save(self):
+    def save(self) -> UserModel:
         email = self.cleaned_data["email"]
         password = self.cleaned_data["password1"]
         return User.objects.create_user(email, password)
@@ -55,14 +61,15 @@ class LoginForm(forms.Form):
         widget=forms.PasswordInput(attrs={"placeholder": "Password"}),
     )
 
-    def __init__(self, *args, request=None, **kwargs):
+    def __init__(self, *args: Any, request: HttpRequest | None = None, **kwargs: Any) -> None:
         self.request = request
-        self._user = None
+        self._user: UserModel | None = None
         super().__init__(*args, **kwargs)
 
-    def clean(self):
-        cleaned_data = super().clean()
-        email = cleaned_data.get("email", "").lower()
+    def clean(self) -> dict[str, Any]:
+        cleaned_data: dict[str, Any] = super().clean() or {}
+        email: str = cleaned_data.get("email") or ""
+        email = email.lower()
         password = cleaned_data.get("password")
         if email and password:
             self._user = authenticate(self.request, username=email, password=password)
@@ -72,26 +79,25 @@ class LoginForm(forms.Form):
                 raise forms.ValidationError("This account has been disabled.")
         return cleaned_data
 
-    def get_user(self):
+    def get_user(self) -> UserModel | None:
         return self._user
 
 
-class CategoryForm(forms.ModelForm):
+class CategoryForm(forms.ModelForm[Category]):
     class Meta:
         model = Category
         fields = ["name"]
         widgets = {
-            "name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Category name"}
-            ),
+            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Category name"}),
         }
 
-    def __init__(self, *args, user=None, **kwargs):
+    def __init__(self, *args: Any, user: UserModel | None = None, **kwargs: Any) -> None:
         self.user = user
         super().__init__(*args, **kwargs)
 
-    def clean_name(self):
-        name = self.cleaned_data["name"].strip()
+    def clean_name(self) -> str:
+        name: str = self.cleaned_data["name"]
+        name = name.strip()
         qs = Category.objects.filter(user=self.user, name__iexact=name)
         if self.instance and self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
@@ -101,9 +107,18 @@ class CategoryForm(forms.ModelForm):
 
 
 MONTH_CHOICES = [
-    (1, "January"), (2, "February"), (3, "March"), (4, "April"),
-    (5, "May"), (6, "June"), (7, "July"), (8, "August"),
-    (9, "September"), (10, "October"), (11, "November"), (12, "December"),
+    (1, "January"),
+    (2, "February"),
+    (3, "March"),
+    (4, "April"),
+    (5, "May"),
+    (6, "June"),
+    (7, "July"),
+    (8, "August"),
+    (9, "September"),
+    (10, "October"),
+    (11, "November"),
+    (12, "December"),
 ]
 
 
@@ -120,34 +135,33 @@ class ExpenseMonthCreateForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-select"}),
     )
 
-    def __init__(self, *args, user=None, **kwargs):
+    def __init__(self, *args: Any, user: UserModel | None = None, **kwargs: Any) -> None:
         self.user = user
         today = datetime.date.today()
         year_choices = [(y, y) for y in range(today.year - 3, today.year + 3)]
         super().__init__(*args, **kwargs)
-        self.fields["year"].choices = year_choices
+        cast(forms.ChoiceField, self.fields["year"]).choices = year_choices
         # Default selects to current month/year
         if not args and not kwargs.get("data"):
             self.fields["month"].initial = today.month
             self.fields["year"].initial = today.year
 
-    def clean(self):
-        cleaned_data = super().clean()
+    def clean(self) -> dict[str, Any]:
+        cleaned_data: dict[str, Any] = super().clean() or {}
         month = cleaned_data.get("month")
         year = cleaned_data.get("year")
         if month and year:
             try:
                 month_date = datetime.date(int(year), int(month), 1)
             except ValueError:
-                raise forms.ValidationError("Invalid month/year combination.")
+                raise forms.ValidationError("Invalid month/year combination.") from None
             cleaned_data["month_date"] = month_date
             if ExpenseMonth.objects.filter(user=self.user, month=month_date).exists():
-                raise forms.ValidationError(
-                    "You already have an expense month for this calendar month."
-                )
+                raise forms.ValidationError("You already have an expense month for this calendar month.")
         return cleaned_data
 
-    def save(self):
+    def save(self) -> ExpenseMonth:
+        assert self.user is not None
         return ExpenseMonth.objects.create(
             user=self.user,
             label=self.cleaned_data["label"],
@@ -155,7 +169,7 @@ class ExpenseMonthCreateForm(forms.Form):
         )
 
 
-class ExpenseMonthEditForm(forms.ModelForm):
+class ExpenseMonthEditForm(forms.ModelForm[ExpenseMonth]):
     class Meta:
         model = ExpenseMonth
         fields = ["label"]
@@ -166,6 +180,7 @@ class ExpenseMonthEditForm(forms.ModelForm):
 
 class _MultipleFileInput(forms.FileInput):
     """FileInput subclass that supports the ``multiple`` HTML attribute."""
+
     allow_multiple_selected = True
 
 
@@ -175,13 +190,11 @@ class CSVUploadForm(forms.Form):
         help_text="Select one or more .csv files to upload.",
     )
 
-    def clean_csv_file(self):
+    def clean_csv_file(self) -> list[Any]:
         files = self.files.getlist("csv_file")
         if not files:
             raise forms.ValidationError("Please select at least one CSV file.")
         for f in files:
-            if not f.name.lower().endswith(".csv"):
-                raise forms.ValidationError(
-                    f'"{f.name}" is not a CSV file. Only .csv files are allowed.'
-                )
+            if not f.name or not f.name.lower().endswith(".csv"):
+                raise forms.ValidationError(f'"{f.name}" is not a CSV file. Only .csv files are allowed.')
         return files

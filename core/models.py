@@ -1,3 +1,8 @@
+from __future__ import annotations
+
+from decimal import Decimal
+from typing import Any
+
 from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
@@ -5,8 +10,8 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 
-class UserManager(BaseUserManager):
-    def create_user(self, email, password=None, **extra_fields):
+class UserManager(BaseUserManager["User"]):
+    def create_user(self, email: str, password: str | None = None, **extra_fields: Any) -> "User":
         if not email:
             raise ValueError("Email address is required")
         email = self.normalize_email(email)
@@ -15,7 +20,7 @@ class UserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, password=None, **extra_fields):
+    def create_superuser(self, email: str, password: str | None = None, **extra_fields: Any) -> "User":
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         return self.create_user(email, password, **extra_fields)
@@ -36,7 +41,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name = "user"
         verbose_name_plural = "users"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.email
 
 
@@ -71,16 +76,14 @@ class Category(models.Model):
         unique_together = ("user", "name")
         ordering = ["name"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
-def seed_default_categories(sender, instance, created, **kwargs):
+def seed_default_categories(sender: type[User], instance: User, created: bool, **kwargs: Any) -> None:
     if created:
-        Category.objects.bulk_create(
-            [Category(user=instance, name=name) for name in DEFAULT_CATEGORIES]
-        )
+        Category.objects.bulk_create([Category(user=instance, name=name) for name in DEFAULT_CATEGORIES])
 
 
 class ExpenseMonth(models.Model):
@@ -99,62 +102,62 @@ class ExpenseMonth(models.Model):
         verbose_name = "expense month"
         verbose_name_plural = "expense months"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.label
 
     @property
-    def total_income(self):
-        return self.transactions.filter(transaction_type='income').aggregate(
-            models.Sum('amount')
-        )['amount__sum'] or 0
+    def total_income(self) -> Decimal:
+        return self.transactions.filter(transaction_type="income").aggregate(models.Sum("amount"))[
+            "amount__sum"
+        ] or Decimal(0)
 
     @property
-    def total_expenses(self):
-        return self.transactions.filter(transaction_type='expense').aggregate(
-            models.Sum('amount')
-        )['amount__sum'] or 0
+    def total_expenses(self) -> Decimal:
+        return self.transactions.filter(transaction_type="expense").aggregate(models.Sum("amount"))[
+            "amount__sum"
+        ] or Decimal(0)
 
     @property
-    def net_balance(self):
+    def net_balance(self) -> Decimal:
         return self.total_income - self.total_expenses
 
 
 class Transaction(models.Model):
     TRANSACTION_TYPES = [
-        ('income', 'Income'),
-        ('expense', 'Expense'),
-        ('unassigned', 'Unassigned'),
+        ("income", "Income"),
+        ("expense", "Expense"),
+        ("unassigned", "Unassigned"),
     ]
 
     expense_month = models.ForeignKey(
         ExpenseMonth,
         on_delete=models.CASCADE,
-        related_name='transactions',
+        related_name="transactions",
     )
     date = models.DateField()
     description = models.CharField(max_length=500)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    account = models.CharField(max_length=200, blank=True, null=True)
+    account = models.CharField(max_length=200, blank=True, null=True)  # noqa: DJ001
     transaction_type = models.CharField(
         max_length=20,
         choices=TRANSACTION_TYPES,
-        default='unassigned',
+        default="unassigned",
     )
     category = models.ForeignKey(
         Category,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='transactions',
+        related_name="transactions",
     )
     source_file = models.CharField(max_length=200, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['date']
+        ordering = ["date"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.date} — {self.description} — ${self.amount}"
 
 
@@ -162,16 +165,16 @@ class CSVUpload(models.Model):
     expense_month = models.ForeignKey(
         ExpenseMonth,
         on_delete=models.CASCADE,
-        related_name='csv_uploads',
+        related_name="csv_uploads",
     )
     filename = models.CharField(max_length=200)
     row_count = models.PositiveIntegerField()
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-uploaded_at']
+        ordering = ["-uploaded_at"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.filename} ({self.row_count} rows)"
 
 
@@ -179,9 +182,9 @@ class UserGridPreference(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='grid_preference',
+        related_name="grid_preference",
     )
     column_visibility = models.JSONField(default=dict)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Grid preference for {self.user}"

@@ -1,0 +1,19 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.5
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - django-stubs[compatible-mypy]
+          - django-stubs-ext
+          - python-dotenv
+          - "Django>=4.2,<5"
+          - django-crispy-forms
+          - crispy-bootstrap5
+        args: [--config-file=pyproject.toml]
