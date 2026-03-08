@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-grid.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-theme-quartz.min.css">
+{% endblock %}
+
 {% block title %}{{ expense_month.label }} — Expense Tracker{% endblock %}
 
 {% block content %}
@@ -26,7 +31,7 @@
     <div class="card text-center border-success">
       <div class="card-body">
         <div class="text-muted small mb-1">Total Income</div>
-        <div class="fs-4 fw-bold text-success">${{ expense_month.total_income }}</div>
+        <div id="income-total" class="fs-4 fw-bold text-success">£{{ expense_month.total_income|floatformat:2 }}</div>
       </div>
     </div>
   </div>
@@ -34,16 +39,16 @@
     <div class="card text-center border-danger">
       <div class="card-body">
         <div class="text-muted small mb-1">Total Expenses</div>
-        <div class="fs-4 fw-bold text-danger">${{ expense_month.total_expenses }}</div>
+        <div id="expense-total" class="fs-4 fw-bold text-danger">£{{ expense_month.total_expenses|floatformat:2 }}</div>
       </div>
     </div>
   </div>
   <div class="col-12 col-sm-4">
-    <div class="card text-center {% if expense_month.net_balance >= 0 %}border-success{% else %}border-danger{% endif %}">
+    <div id="net-balance-card" class="card text-center {% if expense_month.net_balance >= 0 %}border-success{% else %}border-danger{% endif %}">
       <div class="card-body">
         <div class="text-muted small mb-1">Net Balance</div>
-        <div class="fs-4 fw-bold {% if expense_month.net_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
-          ${{ expense_month.net_balance }}
+        <div id="net-balance" class="fs-4 fw-bold {% if expense_month.net_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+          £{{ expense_month.net_balance|floatformat:2 }}
         </div>
       </div>
     </div>
@@ -98,50 +103,226 @@
 <div class="card">
   <div class="card-header d-flex justify-content-between align-items-center">
     <h6 class="mb-0"><i class="bi bi-table me-2"></i>Transactions</h6>
-    <span class="badge bg-secondary">{{ expense_month.transactions.count }}</span>
+    <span class="badge bg-secondary" id="tx-count">{{ expense_month.transactions.count }}</span>
   </div>
-  <div class="card-body p-0">
-    {% with transactions=expense_month.transactions.all %}
-    {% if transactions %}
-    <div class="table-responsive">
-      <table class="table table-hover table-sm mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Date</th>
-            <th>Description</th>
-            <th>Amount</th>
-            <th>Account</th>
-            <th>Type</th>
-            <th>Category</th>
-            <th>Source File</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for tx in transactions %}
-          <tr>
-            <td class="text-nowrap">{{ tx.date|date:"M j, Y" }}</td>
-            <td>{{ tx.description }}</td>
-            <td class="text-nowrap">${{ tx.amount }}</td>
-            <td>{{ tx.account|default:"—" }}</td>
-            <td>
-              <span class="badge {% if tx.transaction_type == 'income' %}bg-success{% elif tx.transaction_type == 'expense' %}bg-danger{% else %}bg-secondary{% endif %}">
-                {{ tx.get_transaction_type_display }}
-              </span>
-            </td>
-            <td>{{ tx.category.name|default:"—" }}</td>
-            <td class="text-muted small text-truncate" style="max-width: 160px;">{{ tx.source_file|default:"—" }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <div class="text-center py-5 text-muted">
-      <i class="bi bi-inbox display-5 mb-2 d-block"></i>
-      No transactions yet. Upload a CSV above.
-    </div>
-    {% endif %}
-    {% endwith %}
+  <div class="card-body p-2">
+    <div id="transactionGrid" class="ag-theme-quartz" style="height: 500px;"></div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/dist/ag-grid-community.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const transactionsData = {{ transactions_json|safe }};
+  const categoriesData   = {{ categories_json|safe }};
+  const monthId          = {{ expense_month.pk }};
+
+  // ── CSRF helper ──────────────────────────────────────────────────────────
+  function getCsrfToken() {
+    const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+  }
+
+  async function postJSON(url, data) {
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken(),
+      },
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ── Category helpers ─────────────────────────────────────────────────────
+  const categorySelectValues = ['', ...categoriesData.map(c => c.name)];
+  const nameToCatMap = Object.fromEntries(categoriesData.map(c => [c.name, c]));
+
+  // ── Summary card update ──────────────────────────────────────────────────
+  function updateSummary(summary) {
+    document.getElementById('income-total').textContent = '£' + summary.income;
+    document.getElementById('expense-total').textContent = '£' + summary.expense;
+    const netEl   = document.getElementById('net-balance');
+    const netCard = document.getElementById('net-balance-card');
+    netEl.textContent = '£' + summary.net;
+    netEl.classList.remove('text-success', 'text-danger');
+    netEl.classList.add(summary.net_positive ? 'text-success' : 'text-danger');
+    netCard.classList.remove('border-success', 'border-danger');
+    netCard.classList.add(summary.net_positive ? 'border-success' : 'border-danger');
+  }
+
+  // ── Error toast ──────────────────────────────────────────────────────────
+  function showError(message) {
+    const div = document.createElement('div');
+    div.className = 'alert alert-danger alert-dismissible fade show position-fixed top-0 end-0 m-3';
+    div.style.zIndex = '9999';
+    div.innerHTML =
+      '<strong>Error:</strong> ' + message +
+      '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 5000);
+  }
+
+  // ── Delete two-click state ────────────────────────────────────────────────
+  let pendingDeleteId = null;
+
+  function deleteButtonRenderer(params) {
+    const txId = params.data.id;
+    const btn  = document.createElement('button');
+    if (pendingDeleteId === txId) {
+      btn.className   = 'btn btn-danger btn-sm py-0';
+      btn.textContent = 'Confirm? ✕';
+    } else {
+      btn.className   = 'btn btn-outline-danger btn-sm py-0';
+      btn.textContent = 'Delete';
+    }
+    btn.addEventListener('click', async () => {
+      if (pendingDeleteId !== txId) {
+        // First click — arm the confirm state
+        pendingDeleteId = txId;
+        gridApi.refreshCells({ force: true });
+      } else {
+        // Second click — execute delete
+        pendingDeleteId = null;
+        try {
+          const resp = await postJSON(
+            '/months/' + monthId + '/transactions/' + txId + '/delete/', {}
+          );
+          const data = await resp.json();
+          if (data.success) {
+            gridApi.applyTransaction({ remove: [params.data] });
+            updateSummary(data.summary);
+            const badge = document.getElementById('tx-count');
+            if (badge) badge.textContent = parseInt(badge.textContent, 10) - 1;
+          } else {
+            showError(data.error || 'Delete failed.');
+          }
+        } catch (e) {
+          showError('Network error during delete.');
+        }
+      }
+    });
+    return btn;
+  }
+
+  // ── Cell value changed ────────────────────────────────────────────────────
+  async function onCellValueChanged(params) {
+    const txId        = params.data.id;
+    let   field       = params.column.getColId();
+    let   value       = params.newValue;
+    const originalData = Object.assign({}, params.data, { [field]: params.oldValue });
+
+    // Map category_name → category_id for the backend
+    if (field === 'category_name') {
+      const match = nameToCatMap[value];
+      field = 'category_id';
+      value = match ? String(match.id) : '';
+    }
+
+    try {
+      const resp   = await postJSON(
+        '/months/' + monthId + '/transactions/' + txId + '/update/',
+        { field, value }
+      );
+      const result = await resp.json();
+      if (result.success) {
+        gridApi.applyTransaction({ update: [result.transaction] });
+        updateSummary(result.summary);
+      } else {
+        showError(result.error || 'Save failed.');
+        gridApi.applyTransaction({ update: [originalData] });
+      }
+    } catch (e) {
+      showError('Network error. Changes not saved.');
+      gridApi.applyTransaction({ update: [originalData] });
+    }
+  }
+
+  // ── Column definitions ────────────────────────────────────────────────────
+  const columnDefs = [
+    {
+      field: 'date',
+      headerName: 'Date',
+      editable: true,
+      cellEditor: 'agTextCellEditor',
+      width: 130,
+    },
+    {
+      field: 'description',
+      headerName: 'Description',
+      editable: true,
+      cellEditor: 'agTextCellEditor',
+      flex: 2,
+      minWidth: 160,
+    },
+    {
+      field: 'amount',
+      headerName: 'Amount',
+      editable: true,
+      cellEditor: 'agNumberCellEditor',
+      valueFormatter: params => (params.value != null ? '£' + parseFloat(params.value).toFixed(2) : ''),
+      width: 115,
+    },
+    {
+      field: 'account',
+      headerName: 'Account',
+      editable: true,
+      cellEditor: 'agTextCellEditor',
+      valueFormatter: params => params.value || '—',
+      width: 140,
+    },
+    {
+      field: 'transaction_type',
+      headerName: 'Type',
+      editable: true,
+      cellEditor: 'agSelectCellEditor',
+      cellEditorParams: { values: ['income', 'expense', 'unassigned'] },
+      valueFormatter: params =>
+        params.value ? params.value.charAt(0).toUpperCase() + params.value.slice(1) : '',
+      width: 120,
+    },
+    {
+      field: 'category_name',
+      headerName: 'Category',
+      editable: true,
+      cellEditor: 'agSelectCellEditor',
+      cellEditorParams: { values: categorySelectValues },
+      valueFormatter: params => params.value || '—',
+      width: 170,
+    },
+    {
+      headerName: 'Actions',
+      sortable: false,
+      filter: false,
+      editable: false,
+      width: 120,
+      cellRenderer: deleteButtonRenderer,
+    },
+  ];
+
+  // ── Grid initialisation ───────────────────────────────────────────────────
+  const gridApi = agGrid.createGrid(
+    document.getElementById('transactionGrid'),
+    {
+      columnDefs: columnDefs,
+      rowData: transactionsData,
+      getRowId: params => String(params.data.id),
+      pagination: true,
+      paginationPageSize: 100,
+      onCellValueChanged: onCellValueChanged,
+      overlayNoRowsTemplate:
+        '<span class="text-muted">No transactions yet — upload a CSV above.</span>',
+      defaultColDef: {
+        sortable: true,
+        resizable: true,
+        filter: true,
+      },
+    }
+  );
+})();
+</script>
 {% endblock %}

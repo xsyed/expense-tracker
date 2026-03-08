@@ -1,11 +1,29 @@
+import datetime
+import json
+from decimal import Decimal, InvalidOperation
+
 from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from .csv_parser import CSVParser
 from .forms import CategoryForm, CSVUploadForm, ExpenseMonthCreateForm, ExpenseMonthEditForm, LoginForm, SignUpForm
 from .models import Category, CSVUpload, ExpenseMonth, Transaction
+
+
+def _month_summary(month):
+    income = month.total_income
+    expenses = month.total_expenses
+    net = month.net_balance
+    return {
+        'income': f'{income:.2f}',
+        'expense': f'{expenses:.2f}',
+        'net': f'{net:.2f}',
+        'net_positive': net >= 0,
+    }
 
 
 def signup_view(request):
@@ -73,7 +91,109 @@ def month_create_view(request):
 @login_required
 def month_detail_view(request, pk):
     expense_month = get_object_or_404(ExpenseMonth, pk=pk, user=request.user)
-    return render(request, "months/detail.html", {"expense_month": expense_month})
+    transactions_data = [
+        {
+            'id': tx.id,
+            'date': str(tx.date),
+            'description': tx.description,
+            'amount': float(tx.amount),
+            'account': tx.account or '',
+            'transaction_type': tx.transaction_type,
+            'category_id': str(tx.category_id) if tx.category_id else '',
+            'category_name': tx.category.name if tx.category else '',
+        }
+        for tx in expense_month.transactions.select_related('category').all()
+    ]
+    categories_data = [
+        {'id': c.id, 'name': c.name}
+        for c in Category.objects.filter(user=request.user)
+    ]
+    return render(request, "months/detail.html", {
+        "expense_month": expense_month,
+        "transactions_json": json.dumps(transactions_data),
+        "categories_json": json.dumps(categories_data),
+    })
+
+
+@login_required
+@require_POST
+def transaction_update_view(request, month_id, tx_id):
+    month = get_object_or_404(ExpenseMonth, id=month_id, user=request.user)
+    transaction = get_object_or_404(Transaction, id=tx_id, expense_month=month)
+
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'Invalid request body.'}, status=400)
+
+    field = body.get('field')
+    value = body.get('value')
+
+    if field == 'date':
+        try:
+            transaction.date = datetime.date.fromisoformat(str(value))
+        except (ValueError, TypeError):
+            return JsonResponse({'success': False, 'error': 'Invalid date. Use YYYY-MM-DD format.', 'field': 'date'}, status=400)
+
+    elif field == 'description':
+        if not value or not str(value).strip():
+            return JsonResponse({'success': False, 'error': 'Description cannot be empty.', 'field': 'description'}, status=400)
+        if len(str(value)) > 500:
+            return JsonResponse({'success': False, 'error': 'Description must be 500 characters or fewer.', 'field': 'description'}, status=400)
+        transaction.description = str(value).strip()
+
+    elif field == 'amount':
+        try:
+            dec = Decimal(str(value)).quantize(Decimal('0.01'))
+            if dec <= 0:
+                raise ValueError
+        except (InvalidOperation, ValueError, TypeError):
+            return JsonResponse({'success': False, 'error': 'Amount must be a positive number.', 'field': 'amount'}, status=400)
+        transaction.amount = dec
+
+    elif field == 'account':
+        if value and len(str(value)) > 200:
+            return JsonResponse({'success': False, 'error': 'Account must be 200 characters or fewer.', 'field': 'account'}, status=400)
+        transaction.account = str(value) if value else ''
+
+    elif field == 'transaction_type':
+        if value not in ('income', 'expense', 'unassigned'):
+            return JsonResponse({'success': False, 'error': 'Invalid transaction type.', 'field': 'transaction_type'}, status=400)
+        transaction.transaction_type = value
+
+    elif field == 'category_id':
+        if not value:
+            transaction.category = None
+        else:
+            try:
+                transaction.category = Category.objects.get(id=value, user=request.user)
+            except Category.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Invalid category.', 'field': 'category_id'}, status=400)
+
+    else:
+        return JsonResponse({'success': False, 'error': f'Unknown field: {field}.'}, status=400)
+
+    transaction.save()
+    tx_data = {
+        'id': transaction.id,
+        'date': str(transaction.date),
+        'description': transaction.description,
+        'amount': float(transaction.amount),
+        'account': transaction.account or '',
+        'transaction_type': transaction.transaction_type,
+        'category_id': str(transaction.category_id) if transaction.category_id else '',
+        'category_name': transaction.category.name if transaction.category else '',
+    }
+    return JsonResponse({'success': True, 'transaction': tx_data, 'summary': _month_summary(month)})
+
+
+@login_required
+@require_POST
+def transaction_delete_view(request, month_id, tx_id):
+    month = get_object_or_404(ExpenseMonth, id=month_id, user=request.user)
+    transaction = get_object_or_404(Transaction, id=tx_id, expense_month=month)
+    transaction.delete()
+    return JsonResponse({'success': True, 'summary': _month_summary(month)})
 
 
 @login_required
