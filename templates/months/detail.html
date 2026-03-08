@@ -444,6 +444,83 @@
     }, 500);
   }
 
+  // ── Category search editor ────────────────────────────────────────────────
+  class CategorySearchEditor {
+    init(params) {
+      this._params = params;
+      this._value  = params.value || '';
+
+      this._eGui = document.createElement('div');
+      this._eGui.style.cssText =
+        'background:#fff; border:1px solid #86b7fe; border-radius:4px; ' +
+        'box-shadow:0 4px 12px rgba(0,0,0,.12); width:220px; overflow:hidden;';
+
+      this._input = document.createElement('input');
+      this._input.type = 'text';
+      this._input.placeholder = 'Search category…';
+      this._input.style.cssText =
+        'display:block; width:100%; padding:6px 10px; border:none; ' +
+        'border-bottom:1px solid #dee2e6; outline:none; font-size:0.875rem; box-sizing:border-box;';
+
+      this._list = document.createElement('ul');
+      this._list.style.cssText =
+        'list-style:none; margin:0; padding:0; max-height:180px; overflow-y:auto;';
+
+      this._eGui.appendChild(this._input);
+      this._eGui.appendChild(this._list);
+
+      this._input.addEventListener('input', () => this._renderList(this._input.value));
+      this._input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          this._value = params.value || '';
+          params.stopEditing(true);
+        } else if (e.key === 'Enter') {
+          params.stopEditing();
+        }
+      });
+    }
+
+    _makeItem(text, onClick, muted) {
+      const li = document.createElement('li');
+      li.textContent = text;
+      li.style.cssText = 'padding:6px 10px; cursor:pointer; font-size:0.875rem;' +
+        (muted ? 'color:#6c757d; font-style:italic;' : '');
+      li.addEventListener('mouseover', () => { li.style.background = '#e9ecef'; });
+      li.addEventListener('mouseout',  () => { li.style.background = ''; });
+      li.addEventListener('mousedown', (e) => { e.preventDefault(); onClick(); });
+      return li;
+    }
+
+    _renderList(query) {
+      this._list.innerHTML = '';
+      const q = query.toLowerCase().trim();
+      const filtered = q
+        ? categoriesData.filter(c => c.name.toLowerCase().includes(q))
+        : categoriesData;
+
+      this._list.appendChild(
+        this._makeItem('— None —', () => { this._value = ''; this._params.stopEditing(); }, true)
+      );
+      filtered.forEach(cat => {
+        this._list.appendChild(
+          this._makeItem(cat.name, () => { this._value = cat.name; this._params.stopEditing(); }, false)
+        );
+      });
+    }
+
+    afterGuiAttached() {
+      this._renderList('');
+      this._input.focus();
+    }
+
+    isPopup()          { return true; }
+    getPopupPosition() { return 'under'; }
+    getGui()           { return this._eGui; }
+    getValue()         { return this._value; }
+    isCancelBeforeStart() { return false; }
+    isCancelAfterEnd()    { return false; }
+  }
+
   // ── Column definitions ────────────────────────────────────────────────────
   const columnDefs = [
     {
@@ -504,8 +581,7 @@
       field: 'category_name',
       headerName: 'Category',
       editable: true,
-      cellEditor: 'agSelectCellEditor',
-      cellEditorParams: { values: categorySelectValues },
+      cellEditor: CategorySearchEditor,
       valueFormatter: params => params.value || '—',
       width: 170,
     },
