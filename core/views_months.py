@@ -81,11 +81,13 @@ def month_detail_view(request: HttpRequest, pk: int) -> HttpResponse:
         defaults={"column_visibility": defaults},
     )
     visibility = {**defaults, **pref.column_visibility}
+    recent_months = list(ExpenseMonth.objects.filter(user=request.user).order_by("-month")[:6])
     return render(
         request,
         "months/detail.html",
         {
             "expense_month": expense_month,
+            "recent_months": recent_months,
             "transactions_json": json.dumps(transactions_data),
             "categories_json": json.dumps(categories_data),
             "column_visibility_json": json.dumps(visibility),

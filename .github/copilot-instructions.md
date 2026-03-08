@@ -99,3 +99,6 @@ SUPER CRITICAL: You have to run make check before completing a task, but the pre
 * **Code as Documentation:** Prioritize expressive naming for variables and functions over adding descriptive comments.
 * **Exception Rule:** Only provide comments for "Why," not "What." Use them exclusively for non-obvious business logic, complex algorithms ($O(n \log n)$ or higher), or technical debt workarounds.
 * **Formatting:** If a comment is necessary, keep it to a single line above the relevant code.
+
+## Plan mode
+- Ask any clarifying questions before writing code or proposing a solution.
