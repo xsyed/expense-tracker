@@ -88,7 +88,15 @@
         <form id="csv-upload-form" method="post" enctype="multipart/form-data" action="{% url 'csv_upload' expense_month.pk %}">
           {% csrf_token %}
           <div class="d-flex gap-2 align-items-center">
-            <input id="csv-file-input" type="file" name="csv_file" class="form-control" accept=".csv" multiple required>
+            <input id="csv-file-input" type="file" name="csv_file" accept=".csv" multiple required class="d-none">
+            <div class="d-flex align-items-center gap-1">
+              <button type="button" class="btn btn-outline-secondary text-nowrap" onclick="document.getElementById('csv-file-input').click()">
+                <i class="bi bi-folder2-open me-1"></i><span id="csv-file-label">Choose Files</span>
+              </button>
+              <button id="csv-clear-btn" type="button" class="btn btn-outline-secondary d-none" aria-label="Clear selected files">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
             <button type="submit" class="btn btn-primary text-nowrap">
               <i class="bi bi-upload me-1"></i>Upload
             </button>
@@ -757,6 +765,23 @@
   const csvUploadModalEl    = document.getElementById('csvUploadModal');
   const csvUploadModal      = new bootstrap.Modal(csvUploadModalEl);
   const csvUploadConfirmBtn = document.getElementById('csv-upload-confirm-btn');
+
+  const csvFileInput  = document.getElementById('csv-file-input');
+  const csvFileLabel  = document.getElementById('csv-file-label');
+  const csvClearBtn   = document.getElementById('csv-clear-btn');
+
+  function updateFileLabel() {
+    const n = csvFileInput.files.length;
+    csvFileLabel.textContent = n === 0 ? 'Choose Files' : n === 1 ? '1 File' : n + ' Files';
+    csvClearBtn.classList.toggle('d-none', n === 0);
+  }
+
+  csvFileInput.addEventListener('change', updateFileLabel);
+
+  csvClearBtn.addEventListener('click', () => {
+    csvFileInput.value = '';
+    updateFileLabel();
+  });
 
   csvUploadForm.addEventListener('submit', async (e) => {
     e.preventDefault();
