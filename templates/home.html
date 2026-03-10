@@ -12,6 +12,24 @@
   box-shadow: 0 0.5rem 1rem rgba(0,0,0,.15) !important;
   transform: translateY(-2px);
 }
+.months-track {
+  display: flex;
+  gap: 1rem;
+  overflow: hidden;
+  scroll-behavior: smooth;
+  flex: 1 1 0;
+  min-width: 0;
+}
+.month-card-slot {
+  flex: 0 0 calc(33.333% - 0.667rem);
+  min-width: 0;
+}
+@media (max-width: 767.98px) {
+  .month-card-slot { flex: 0 0 calc(50% - 0.5rem); }
+}
+@media (max-width: 575.98px) {
+  .month-card-slot { flex: 0 0 100%; }
+}
 </style>
 {% endblock %}
 
@@ -27,53 +45,61 @@
 </div>
 
 {% if expense_months %}
-<div class="row g-3 mb-5">
-  {% for em in expense_months %}
-  <div class="col-12 col-sm-6 col-lg-4">
-    <div class="card h-100 shadow-sm position-relative month-card" style="cursor: pointer;">
-      <div class="card-body">
-        <a href="{% url 'month_detail' em.pk %}" class="stretched-link" aria-label="View {{ em.label }}"></a>
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <h5 class="card-title mb-0">{{ em.label }}</h5>
-          <div class="d-flex align-items-center gap-2 position-relative" style="z-index: 2;">
-            <span class="badge bg-secondary">{{ em.month|date:"M Y" }}</span>
-            <div class="dropdown">
-              <button class="btn btn-sm text-muted border-0 bg-transparent px-1 py-0 lh-1" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="bi bi-three-dots"></i>
-              </button>
-              <ul class="dropdown-menu dropdown-menu-end">
-                <li>
-                  <a class="dropdown-item" href="{% url 'month_edit' em.pk %}">
-                    <i class="bi bi-pencil me-2"></i>Edit
-                  </a>
-                </li>
-                <li>
-                  <a class="dropdown-item text-danger" href="{% url 'month_delete' em.pk %}">
-                    <i class="bi bi-trash me-2"></i>Delete
-                  </a>
-                </li>
-              </ul>
+<div class="d-flex align-items-center gap-2 mb-5">
+  <button id="carousel-prev" class="btn btn-outline-secondary flex-shrink-0" aria-label="Previous months">
+    <i class="bi bi-chevron-left"></i>
+  </button>
+  <div id="months-track" class="months-track">
+    {% for em in expense_months %}
+    <div class="month-card-slot">
+      <div class="card h-100 shadow-sm position-relative month-card" style="cursor: pointer;">
+        <div class="card-body">
+          <a href="{% url 'month_detail' em.pk %}" class="stretched-link" aria-label="View {{ em.label }}"></a>
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <h5 class="card-title mb-0">{{ em.label }}</h5>
+            <div class="d-flex align-items-center gap-2 position-relative" style="z-index: 2;">
+              <span class="badge bg-secondary">{{ em.month|date:"M Y" }}</span>
+              <div class="dropdown">
+                <button class="btn btn-sm text-muted border-0 bg-transparent px-1 py-0 lh-1" data-bs-toggle="dropdown" aria-expanded="false">
+                  <i class="bi bi-three-dots"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li>
+                    <a class="dropdown-item" href="{% url 'month_edit' em.pk %}">
+                      <i class="bi bi-pencil me-2"></i>Edit
+                    </a>
+                  </li>
+                  <li>
+                    <a class="dropdown-item text-danger" href="{% url 'month_delete' em.pk %}">
+                      <i class="bi bi-trash me-2"></i>Delete
+                    </a>
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="row g-2 my-2 text-center">
-          <div class="col-4">
-            <div class="small text-muted">Income</div>
-            <div class="fw-semibold text-success">${{ em.total_income|floor }}</div>
-          </div>
-          <div class="col-4">
-            <div class="small text-muted">Expenses</div>
-            <div class="fw-semibold text-danger">${{ em.total_expenses|floor }}</div>
-          </div>
-          <div class="col-4">
-            <div class="small text-muted">Net</div>
-            <div class="fw-semibold {% if em.net_balance >= 0 %}text-success{% else %}text-danger{% endif %}">${{ em.net_balance|floor }}</div>
+          <div class="row g-2 my-2 text-center">
+            <div class="col-4">
+              <div class="small text-muted">Income</div>
+              <div class="fw-semibold text-success">${{ em.total_income|floor }}</div>
+            </div>
+            <div class="col-4">
+              <div class="small text-muted">Expenses</div>
+              <div class="fw-semibold text-danger">${{ em.total_expenses|floor }}</div>
+            </div>
+            <div class="col-4">
+              <div class="small text-muted">Net</div>
+              <div class="fw-semibold {% if em.net_balance >= 0 %}text-success{% else %}text-danger{% endif %}">${{ em.net_balance|floor }}</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
+    {% endfor %}
   </div>
-  {% endfor %}
+  <button id="carousel-next" class="btn btn-outline-secondary flex-shrink-0" aria-label="Next months">
+    <i class="bi bi-chevron-right"></i>
+  </button>
 </div>
 {% else %}
 <div class="card text-center py-5 mb-5">
@@ -365,6 +391,24 @@
           .then(function (data) { initChart2(data); })
           .catch(function () { showEmpty('chart2', 'Failed to load chart data.'); });
       });
+    }
+
+    var track = document.getElementById('months-track');
+    var prevBtn = document.getElementById('carousel-prev');
+    var nextBtn = document.getElementById('carousel-next');
+    if (track && prevBtn && nextBtn) {
+      var updateCarouselBtns = function () {
+        prevBtn.disabled = track.scrollLeft <= 0;
+        nextBtn.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 1;
+      };
+      prevBtn.addEventListener('click', function () {
+        track.scrollBy({ left: -track.clientWidth, behavior: 'smooth' });
+      });
+      nextBtn.addEventListener('click', function () {
+        track.scrollBy({ left: track.clientWidth, behavior: 'smooth' });
+      });
+      track.addEventListener('scroll', updateCarouselBtns);
+      updateCarouselBtns();
     }
 
     refreshAllCharts();
