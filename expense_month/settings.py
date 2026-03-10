@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import django_stubs_ext
+from django.contrib.messages import constants as message_constants
 from dotenv import load_dotenv
 
 django_stubs_ext.monkeypatch()
@@ -86,3 +87,5 @@ LOGOUT_REDIRECT_URL = "/auth/login/"
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
+
+MESSAGE_TAGS = {message_constants.ERROR: "danger"}

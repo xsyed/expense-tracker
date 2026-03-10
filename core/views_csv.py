@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import calendar
+from datetime import date
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
@@ -22,6 +25,9 @@ def csv_upload_view(request: HttpRequest, pk: int) -> HttpResponse:
         return redirect("month_detail", pk=pk)
 
     total_imported = 0
+    start_date: date = expense_month.month
+    last_day = calendar.monthrange(start_date.year, start_date.month)[1]
+    end_date = date(start_date.year, start_date.month, last_day)
 
     for f in files:
         if not f.name or not f.name.lower().endswith(".csv"):
@@ -35,7 +41,10 @@ def csv_upload_view(request: HttpRequest, pk: int) -> HttpResponse:
             messages.error(request, f'"{filename}": {errors[0]}')
             continue
 
-        if rows:
+        valid_rows = [row for row in rows if start_date <= row["date"] <= end_date]
+        excluded_rows = [row for row in rows if row not in valid_rows]
+
+        if valid_rows:
             Transaction.objects.bulk_create(
                 [
                     Transaction(
@@ -46,15 +55,23 @@ def csv_upload_view(request: HttpRequest, pk: int) -> HttpResponse:
                         source_file=row.get("source_file", filename),
                         transaction_type="expense",
                     )
-                    for row in rows
+                    for row in valid_rows
                 ]
             )
             CSVUpload.objects.create(
                 expense_month=expense_month,
                 filename=filename,
-                row_count=len(rows),
+                row_count=len(valid_rows),
             )
-            total_imported += len(rows)
+            total_imported += len(valid_rows)
+
+        if excluded_rows:
+            excluded_dates = ", ".join(row["date"].isoformat() for row in excluded_rows)
+            msg = (
+                f'"{filename}": {len(excluded_rows)} transaction(s) not imported'
+                f" — date outside {expense_month.label}: {excluded_dates}"
+            )
+            messages.warning(request, msg)
 
         if errors:
             messages.warning(
