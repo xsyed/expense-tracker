@@ -2,6 +2,7 @@ Django>=4.2,<5
 django-crispy-forms
 crispy-bootstrap5
 python-dotenv
+defusedcsv
 mypy
 django-stubs[compatible-mypy]
 django-stubs-ext

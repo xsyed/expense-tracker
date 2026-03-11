@@ -3,14 +3,13 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # 2) Install dependencies used by this project
-pip install --upgrade pip
-pip install "Django>=4.2,<5" django-crispy-forms crispy-bootstrap5 python-dotenv
+pip install -r requirements.txt
 
 # 3) Run migrations
 python manage.py migrate
 
-# 4) (Optional) create admin user
-python manage.py createsuperuser
-
-# 5) Start server
+# 4) Start server
 python manage.py runserver
+
+# 5) (Optional) create admin user
+python manage.py createsuperuser

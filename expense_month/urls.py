@@ -28,6 +28,7 @@ from core.views_charts import (
     chart_top_categories_view,
 )
 from core.views_csv import csv_upload_view
+from core.views_csv_mapper import csv_mapper_download_view, csv_mapper_sample_view, csv_mapper_view
 from core.views_months import month_create_view, month_delete_view, month_detail_view, month_edit_view, month_list_view
 from core.views_transactions import (
     transaction_bulk_delete_view,
@@ -72,4 +73,7 @@ urlpatterns = [
     path("preferences/grid/", update_grid_preferences_view, name="grid_preferences_update"),
     path("api/charts/top-categories/", chart_top_categories_view, name="chart_top_categories"),
     path("api/charts/month-over-month/", chart_month_over_month_view, name="chart_mom"),
+    path("csv-mapper/", csv_mapper_view, name="csv_mapper"),
+    path("csv-mapper/download/", csv_mapper_download_view, name="csv_mapper_download"),
+    path("csv-mapper/sample.csv", csv_mapper_sample_view, name="csv_mapper_sample"),
 ]

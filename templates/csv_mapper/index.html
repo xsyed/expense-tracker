@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+
+{% block title %}CSV Mapper — Expense Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="mb-0">CSV Mapper</h2>
+  <a href="{% url 'csv_mapper_sample' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-download me-1"></i>Download Sample CSV
+  </a>
+</div>
+
+<form id="mapper-form" method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+
+  <!-- Section B: Upload zone — hidden once a file is selected -->
+  <div id="upload-card" class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0">Upload CSV</h5>
+    </div>
+    <div class="card-body">
+      <input type="file" class="form-control" id="csv-file-input" name="csv_file" accept=".csv" required>
+      <div class="form-text mt-2">Select a <code>.csv</code> file to begin column mapping.</div>
+    </div>
+  </div>
+
+  <!-- Section C: Mapping panel — hidden until file is selected -->
+  <div id="mapping-card" class="card mb-4 d-none">
+    <div class="card-header">
+      <h5 class="mb-0">Map Columns</h5>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-borderless mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">CSV Column</th>
+            <th class="text-center" style="width:44px;"></th>
+            <th>Maps To</th>
+          </tr>
+        </thead>
+        <tbody id="mapping-rows"></tbody>
+      </table>
+    </div>
+    <div id="mapping-error" class="card-footer text-danger small d-none" role="alert"></div>
+  </div>
+
+  <!-- Section D: Live preview — hidden until at least one column is mapped -->
+  <div id="preview-card" class="card mb-4 d-none">
+    <div class="card-header">
+      <h6 class="mb-0 text-muted">Preview <span class="fw-normal">(first 5 rows, mapped columns only)</span></h6>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table id="preview-table" class="table table-sm table-striped mb-0"></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section E: Action bar -->
+  <div class="card mb-4">
+    <div class="card-body d-flex flex-wrap align-items-end gap-3">
+      <div>
+        <label for="account-select" class="form-label mb-1 small text-muted">Account <span class="text-muted fw-normal">(optional)</span></label>
+        <select id="account-select" name="account_id" class="form-select form-select-sm" style="min-width:180px;">
+          <option value="">— No account —</option>
+          {% for account in accounts %}
+          <option value="{{ account.pk }}">{{ account.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="ms-auto d-flex gap-2">
+        <button
+          type="submit"
+          id="import-btn"
+          class="btn btn-primary"
+          hx-post="{% url 'csv_mapper' %}"
+          hx-target="#result-container"
+          hx-swap="innerHTML"
+          hx-encoding="multipart/form-data">
+          <i class="bi bi-cloud-upload me-1"></i>Import
+        </button>
+        <button type="submit" id="download-btn" class="btn btn-outline-secondary" formaction="{% url 'csv_mapper_download' %}">
+          <i class="bi bi-download me-1"></i>Download
+        </button>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Section F: HTMX result target -->
+<div id="result-container"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.12/htmx.min.js" integrity="sha512-n4CPKXXh9HoAUCDELFIl8K/SFX/lrh7lNBUXaS1B4WkJFhM5DdT5CyGhIrzNwNvmYDTAJfHjmW0nHFJFYkCg==" crossorigin="anonymous"></script>
+
+<script>
+  const fileInput = document.getElementById('csv-file-input');
+  const uploadCard = document.getElementById('upload-card');
+  const mappingCard = document.getElementById('mapping-card');
+  const previewCard = document.getElementById('preview-card');
+  const mappingRowsTbody = document.getElementById('mapping-rows');
+  const mappingError = document.getElementById('mapping-error');
+  const importBtn = document.getElementById('import-btn');
+  const downloadBtn = document.getElementById('download-btn');
+
+  let csvHeaders = [];
+  let csvRows = [];
+  let validationFired = false;
+
+  const TARGET_OPTIONS = [
+    { value: '', label: '— skip —' },
+    { value: 'date', label: 'Date' },
+    { value: 'description', label: 'Description' },
+    { value: 'amount', label: 'Amount' },
+    { value: 'account', label: 'Account' },
+  ];
+  const REQUIRED_TARGETS = ['date', 'description', 'amount'];
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function capitalise(s) {
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuote = false;
+    for (const ch of line) {
+      if (ch === '"') {
+        inQuote = !inQuote;
+      } else if (ch === ',' && !inQuote) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  function parseCSVHeaders(text) {
+    const firstLine = (text.split('\n')[0] || '').replace(/\r$/, '');
+    return parseCSVLine(firstLine);
+  }
+
+  function parseCSVRows(text) {
+    return text
+      .split('\n')
+      .slice(1, 6)
+      .map(l => l.replace(/\r$/, ''))
+      .filter(l => l.trim())
+      .map(parseCSVLine);
+  }
+
+  function onFileSelected() {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const text = e.target.result;
+      csvHeaders = parseCSVHeaders(text);
+      csvRows = parseCSVRows(text);
+      renderMappingUI(csvHeaders);
+      uploadCard.classList.add('d-none');
+    };
+    reader.readAsText(file);
+  }
+
+  function renderMappingUI(headers) {
+    mappingRowsTbody.innerHTML = '';
+    const opts = TARGET_OPTIONS.map(o =>
+      `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`
+    ).join('');
+
+    headers.forEach(header => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="align-middle ps-3">
+          <code>${escapeHtml(header)}</code>
+        </td>
+        <td class="text-center align-middle text-muted">&rarr;</td>
+        <td class="align-middle pe-3">
+          <div class="d-flex align-items-center gap-2">
+            <select class="form-select form-select-sm mapping-select" data-header="${escapeHtml(header)}">${opts}</select>
+            <span class="badge text-bg-danger d-none required-badge">Required</span>
+          </div>
+        </td>
+      `;
+      mappingRowsTbody.appendChild(tr);
+    });
+
+    mappingRowsTbody.querySelectorAll('.mapping-select').forEach(sel =>
+      sel.addEventListener('change', onMappingChange)
+    );
+    mappingCard.classList.remove('d-none');
+    renderPreview();
+  }
+
+  function onMappingChange(event) {
+    const changed = event.target;
+    // Enforce uniqueness: clear any other select that has the same non-empty value
+    if (changed.value) {
+      mappingRowsTbody.querySelectorAll('.mapping-select').forEach(other => {
+        if (other !== changed && other.value === changed.value) {
+          other.value = '';
+        }
+      });
+    }
+    if (validationFired) refreshBadges();
+    renderPreview();
+  }
+
+  function getCurrentMapping() {
+    const m = {};
+    mappingRowsTbody.querySelectorAll('.mapping-select').forEach(sel => {
+      if (sel.value) m[sel.value] = sel.dataset.header;
+    });
+    return m;
+  }
+
+  function refreshBadges() {
+    const mapping = getCurrentMapping();
+    const missing = new Set(REQUIRED_TARGETS.filter(t => !mapping[t]));
+    // For each select row: show badge if the select is empty AND at least one required target is still missing
+    mappingRowsTbody.querySelectorAll('.mapping-select').forEach(sel => {
+      const badge = sel.parentElement.querySelector('.required-badge');
+      if (badge) {
+        badge.classList.toggle('d-none', !(sel.value === '' && missing.size > 0));
+      }
+    });
+    if (missing.size === 0) {
+      mappingError.classList.add('d-none');
+    }
+  }
+
+  function renderPreview() {
+    const mapping = getCurrentMapping();
+    const cols = ['date', 'description', 'amount', 'account'].filter(t => mapping[t]);
+    if (!cols.length) {
+      previewCard.classList.add('d-none');
+      return;
+    }
+
+    const headerRow = cols.map(t => `<th>${capitalise(t)}</th>`).join('');
+    const bodyRows = csvRows.map(row => {
+      const cells = cols.map(t => {
+        const idx = csvHeaders.indexOf(mapping[t]);
+        return `<td>${escapeHtml(idx >= 0 ? (row[idx] || '') : '')}</td>`;
+      }).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+
+    document.getElementById('preview-table').innerHTML =
+      `<thead class="table-light"><tr>${headerRow}</tr></thead><tbody>${bodyRows}</tbody>`;
+    previewCard.classList.remove('d-none');
+  }
+
+  function injectMappingInputs(mapping) {
+    document.querySelectorAll('.injected-mapping').forEach(el => el.remove());
+    const form = document.getElementById('mapper-form');
+    function inject(name, val) {
+      const el = document.createElement('input');
+      el.type = 'hidden';
+      el.name = name;
+      el.value = val;
+      el.classList.add('injected-mapping');
+      form.appendChild(el);
+    }
+    inject('map_date', mapping['date'] || '');
+    inject('map_description', mapping['description'] || '');
+    inject('map_amount', mapping['amount'] || '');
+    if (mapping['account']) inject('map_account_col', mapping['account']);
+  }
+
+  importBtn.addEventListener('click', function (event) {
+    const mapping = getCurrentMapping();
+    const missing = REQUIRED_TARGETS.filter(t => !mapping[t]);
+    if (missing.length) {
+      event.preventDefault();
+      validationFired = true;
+      mappingError.textContent =
+        'Required columns not mapped: ' + missing.map(capitalise).join(', ') + '.';
+      mappingError.classList.remove('d-none');
+      refreshBadges();
+      mappingCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+    mappingError.classList.add('d-none');
+    injectMappingInputs(mapping);
+  });
+
+  downloadBtn.addEventListener('click', function () {
+    injectMappingInputs(getCurrentMapping());
+  });
+
+  fileInput.addEventListener('change', onFileSelected);
+</script>
+{% endblock %}
