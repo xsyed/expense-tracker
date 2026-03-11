@@ -60,7 +60,8 @@
   <div class="card mb-4">
     <div class="card-body d-flex flex-wrap align-items-end gap-3">
       <div>
-        <label for="account-select" class="form-label mb-1 small text-muted">Account <span class="text-muted fw-normal">(optional)</span></label>
+        <label for="account-select" class="form-label mb-1 small text-muted">Account <span
+            class="text-muted fw-normal">(optional)</span></label>
         <select id="account-select" name="account_id" class="form-select form-select-sm" style="min-width:180px;">
           <option value="">— No account —</option>
           {% for account in accounts %}
@@ -69,17 +70,12 @@
         </select>
       </div>
       <div class="ms-auto d-flex gap-2">
-        <button
-          type="submit"
-          id="import-btn"
-          class="btn btn-primary"
-          hx-post="{% url 'csv_mapper' %}"
-          hx-target="#result-container"
-          hx-swap="innerHTML"
-          hx-encoding="multipart/form-data">
+        <button type="submit" id="import-btn" class="btn btn-primary" hx-post="{% url 'csv_mapper' %}"
+          hx-target="#result-container" hx-swap="innerHTML" hx-encoding="multipart/form-data">
           <i class="bi bi-cloud-upload me-1"></i>Import
         </button>
-        <button type="submit" id="download-btn" class="btn btn-outline-secondary" formaction="{% url 'csv_mapper_download' %}">
+        <button type="submit" id="download-btn" class="btn btn-outline-secondary"
+          formaction="{% url 'csv_mapper_download' %}">
           <i class="bi bi-download me-1"></i>Download
         </button>
       </div>
@@ -92,7 +88,9 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.12/htmx.min.js" integrity="sha512-n4CPKXXh9HoAUCDELFIl8K/SFX/lrh7lNBUXaS1B4WkJFhM5DdT5CyGhIrzNwNvmYDTAJfHjmW0nHFJFYkCg==" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.12/htmx.min.js"
+  integrity="sha512-JvpjarJlOl4sW26MnEb3IdSAcGdeTeOaAlu2gUZtfFrRgnChdzELOZKl0mN6ZvI0X+xiX5UMvxjK2Rx2z/fliw=="
+  crossorigin="anonymous"></script>
 
 <script>
   const fileInput = document.getElementById('csv-file-input');
