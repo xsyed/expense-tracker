@@ -113,7 +113,7 @@
     { value: 'amount', label: 'Amount' },
     { value: 'account', label: 'Account' },
   ];
-  const REQUIRED_TARGETS = ['date', 'description', 'amount'];
+  const HARD_REQUIRED = ['date', 'description'];
 
   function escapeHtml(str) {
     return String(str)
@@ -205,8 +205,8 @@
 
   function onMappingChange(event) {
     const changed = event.target;
-    // Enforce uniqueness: clear any other select that has the same non-empty value
-    if (changed.value) {
+    // Enforce uniqueness for all targets except amount (which allows multiple sources)
+    if (changed.value && changed.value !== 'amount') {
       mappingRowsTbody.querySelectorAll('.mapping-select').forEach(other => {
         if (other !== changed && other.value === changed.value) {
           other.value = '';
@@ -220,37 +220,59 @@
   function getCurrentMapping() {
     const m = {};
     mappingRowsTbody.querySelectorAll('.mapping-select').forEach(sel => {
-      if (sel.value) m[sel.value] = sel.dataset.header;
+      if (!sel.value) return;
+      if (sel.value === 'amount') {
+        if (!m.amount) m.amount = [];
+        m.amount.push(sel.dataset.header);
+      } else {
+        m[sel.value] = sel.dataset.header;
+      }
     });
     return m;
   }
 
   function refreshBadges() {
     const mapping = getCurrentMapping();
-    const missing = new Set(REQUIRED_TARGETS.filter(t => !mapping[t]));
-    // For each select row: show badge if the select is empty AND at least one required target is still missing
+    const missingHard = HARD_REQUIRED.filter(t => !mapping[t]);
+    const amountMapped = (mapping.amount?.length ?? 0) > 0;
+    const hasMissing = missingHard.length > 0 || !amountMapped;
     mappingRowsTbody.querySelectorAll('.mapping-select').forEach(sel => {
       const badge = sel.parentElement.querySelector('.required-badge');
       if (badge) {
-        badge.classList.toggle('d-none', !(sel.value === '' && missing.size > 0));
+        badge.classList.toggle('d-none', !(sel.value === '' && hasMissing));
       }
     });
-    if (missing.size === 0) {
+    if (!hasMissing) {
       mappingError.classList.add('d-none');
     }
   }
 
   function renderPreview() {
     const mapping = getCurrentMapping();
-    const cols = ['date', 'description', 'amount', 'account'].filter(t => mapping[t]);
-    if (!cols.length) {
+    const hasAmount = (mapping.amount?.length ?? 0) > 0;
+
+    const logicalCols = [];
+    if (mapping['date']) logicalCols.push('date');
+    if (mapping['description']) logicalCols.push('description');
+    if (hasAmount) logicalCols.push('_amount');
+    if (mapping['account']) logicalCols.push('account');
+
+    if (!logicalCols.length) {
       previewCard.classList.add('d-none');
       return;
     }
 
-    const headerRow = cols.map(t => `<th>${capitalise(t)}</th>`).join('');
+    const headerRow = logicalCols.map(t => `<th>${t === '_amount' ? 'Amount' : capitalise(t)}</th>`).join('');
     const bodyRows = csvRows.map(row => {
-      const cells = cols.map(t => {
+      const cells = logicalCols.map(t => {
+        if (t === '_amount') {
+          const filled = (mapping.amount || []).map(col => {
+            const idx = csvHeaders.indexOf(col);
+            return (idx >= 0 ? row[idx] || '' : '').trim();
+          }).filter(v => v);
+          if (filled.length > 1) return `<td class="text-danger small">⚠ Conflict</td>`;
+          return `<td>${escapeHtml(filled[0] || '')}</td>`;
+        }
         const idx = csvHeaders.indexOf(mapping[t]);
         return `<td>${escapeHtml(idx >= 0 ? (row[idx] || '') : '')}</td>`;
       }).join('');
@@ -275,18 +297,19 @@
     }
     inject('map_date', mapping['date'] || '');
     inject('map_description', mapping['description'] || '');
-    inject('map_amount', mapping['amount'] || '');
+    (mapping.amount || []).forEach(col => inject('map_amount', col));
     if (mapping['account']) inject('map_account_col', mapping['account']);
   }
 
   importBtn.addEventListener('click', function (event) {
     const mapping = getCurrentMapping();
-    const missing = REQUIRED_TARGETS.filter(t => !mapping[t]);
-    if (missing.length) {
+    const missingHard = HARD_REQUIRED.filter(t => !mapping[t]);
+    const amountMapped = (mapping.amount?.length ?? 0) > 0;
+    if (missingHard.length || !amountMapped) {
       event.preventDefault();
       validationFired = true;
-      mappingError.textContent =
-        'Required columns not mapped: ' + missing.map(capitalise).join(', ') + '.';
+      const labels = [...missingHard.map(capitalise), ...(!amountMapped ? ['Amount'] : [])];
+      mappingError.textContent = 'Required columns not mapped: ' + labels.join(', ') + '.';
       mappingError.classList.remove('d-none');
       refreshBadges();
       mappingCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

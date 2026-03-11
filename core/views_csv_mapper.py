@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import contextlib
 import csv
 import io
 from datetime import date
 from decimal import Decimal
-from typing import IO, Any
+from typing import IO, Any, TypedDict
 
-import defusedcsv  # type: ignore[import-untyped]
+from defusedcsv import csv as defusedcsv  # type: ignore[import-untyped]
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
@@ -17,7 +18,14 @@ from .models import Account, ExpenseMonth, Transaction
 _parser = CSVParser()
 
 
-def _apply_mapping(file: IO[bytes], mapping: dict[str, str]) -> list[dict[str, Any]]:
+class CsvMapping(TypedDict, total=False):
+    date_col: str
+    desc_col: str
+    amount_cols: list[str]
+    account_col: str
+
+
+def _apply_mapping(file: IO[bytes], mapping: CsvMapping) -> list[dict[str, Any]]:
     raw: bytes = file.read()
     for encoding in ("utf-8-sig", "utf-8", "latin-1"):
         try:
@@ -30,18 +38,21 @@ def _apply_mapping(file: IO[bytes], mapping: dict[str, str]) -> list[dict[str, A
 
     rows: list[dict[str, Any]] = []
     account_col = mapping.get("account_col")
+    amount_cols: list[str] = mapping.get("amount_cols") or []
 
     for row in csv.DictReader(io.StringIO(text)):
-        date_str = (row.get(mapping["date_col"]) or "").strip()
-        desc_str = (row.get(mapping["desc_col"]) or "").strip()
-        amount_str = (row.get(mapping["amount_col"]) or "").strip()
+        date_str = (row.get(mapping.get("date_col", "")) or "").strip()
+        desc_str = (row.get(mapping.get("desc_col", "")) or "").strip()
         account_str: str | None = (row.get(account_col) or "").strip() if account_col else None
 
         parsed_date = _parser._parse_date(date_str)
-        try:
-            parsed_amount: Decimal | None = Decimal(str(_parser._parse_amount(amount_str)))
-        except (ValueError, TypeError):
-            parsed_amount = None
+        parsed_amount: Decimal | None = None
+
+        filled = [(col, val) for col in amount_cols if (val := (row.get(col) or "").strip())]
+        if len(filled) == 1:
+            with contextlib.suppress(ValueError, TypeError):
+                parsed_amount = abs(Decimal(str(_parser._parse_amount(filled[0][1]))))
+        # len == 0 (none filled) or len > 1 (conflict) → parsed_amount stays None → parse_error
 
         entry: dict[str, Any] = {
             "date": parsed_date,
@@ -56,11 +67,11 @@ def _apply_mapping(file: IO[bytes], mapping: dict[str, str]) -> list[dict[str, A
     return rows
 
 
-def _build_mapping(post: Any) -> dict[str, str]:
-    mapping: dict[str, str] = {
+def _build_mapping(post: Any) -> CsvMapping:
+    mapping: CsvMapping = {
         "date_col": post.get("map_date", ""),
         "desc_col": post.get("map_description", ""),
-        "amount_col": post.get("map_amount", ""),
+        "amount_cols": [v for v in post.getlist("map_amount") if v],
     }
     account_col_name: str = post.get("map_account_col", "")
     if account_col_name:
