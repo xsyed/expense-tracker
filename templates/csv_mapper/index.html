@@ -71,7 +71,7 @@
       </div>
       <div class="ms-auto d-flex gap-2">
         <button type="submit" id="import-btn" class="btn btn-primary" hx-post="{% url 'csv_mapper' %}"
-          hx-target="#result-container" hx-swap="innerHTML" hx-encoding="multipart/form-data">
+          hx-target="#import-result-modal .modal-body" hx-swap="innerHTML" hx-encoding="multipart/form-data">
           <i class="bi bi-cloud-upload me-1"></i>Import
         </button>
         <button type="submit" id="download-btn" class="btn btn-outline-secondary"
@@ -83,8 +83,22 @@
   </div>
 </form>
 
-<!-- Section F: HTMX result target -->
-<div id="result-container"></div>
+<!-- Import result modal -->
+<div class="modal fade" id="import-result-modal" tabindex="-1" aria-labelledby="import-result-modal-label"
+  aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="import-result-modal-label">Import Results</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -324,5 +338,23 @@
   });
 
   fileInput.addEventListener('change', onFileSelected);
+
+  document.body.addEventListener('htmx:afterSwap', function (evt) {
+    if (evt.detail.target.closest('#import-result-modal')) {
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('import-result-modal')).show();
+    }
+  });
+
+  document.getElementById('import-result-modal').addEventListener('hidden.bs.modal', function () {
+    fileInput.value = '';
+    uploadCard.classList.remove('d-none');
+    mappingCard.classList.add('d-none');
+    previewCard.classList.add('d-none');
+    csvHeaders = [];
+    csvRows = [];
+    validationFired = false;
+    mappingRowsTbody.innerHTML = '';
+    document.getElementById('account-select').value = '';
+  });
 </script>
 {% endblock %}
