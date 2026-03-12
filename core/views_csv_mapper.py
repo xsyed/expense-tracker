@@ -9,7 +9,7 @@ from typing import IO, Any, TypedDict
 
 from defusedcsv import csv as defusedcsv  # type: ignore[import-untyped]
 from django.contrib.auth.decorators import login_required
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 
 from .csv_parser import CSVParser
@@ -23,6 +23,20 @@ class CsvMapping(TypedDict, total=False):
     desc_col: str
     amount_cols: list[str]
     account_col: str
+
+
+class MonthSummary(TypedDict):
+    label: str
+    pk: int
+    count: int
+    is_new: bool
+
+
+class ImportResult(TypedDict):
+    total_imported: int
+    skipped_errors: int
+    skipped_future: int
+    months: list[MonthSummary]
 
 
 def _apply_mapping(file: IO[bytes], mapping: CsvMapping) -> list[dict[str, Any]]:
@@ -67,20 +81,20 @@ def _apply_mapping(file: IO[bytes], mapping: CsvMapping) -> list[dict[str, Any]]
     return rows
 
 
-def _build_mapping(post: Any) -> CsvMapping:
+def _build_mapping(post: Any, prefix: str = "") -> CsvMapping:
     mapping: CsvMapping = {
-        "date_col": post.get("map_date", ""),
-        "desc_col": post.get("map_description", ""),
-        "amount_cols": [v for v in post.getlist("map_amount") if v],
+        "date_col": post.get(f"{prefix}map_date", ""),
+        "desc_col": post.get(f"{prefix}map_description", ""),
+        "amount_cols": [v for v in post.getlist(f"{prefix}map_amount") if v],
     }
-    account_col_name: str = post.get("map_account_col", "")
+    account_col_name: str = post.get(f"{prefix}map_account_col", "")
     if account_col_name:
         mapping["account_col"] = account_col_name
     return mapping
 
 
-def _resolve_account(post: Any, user: Any) -> Account | None:
-    account_id_str: str = post.get("account_id", "")
+def _resolve_account(post: Any, user: Any, prefix: str = "") -> Account | None:
+    account_id_str: str = post.get(f"{prefix}account_id", "")
     if not account_id_str:
         return None
     try:
@@ -89,21 +103,8 @@ def _resolve_account(post: Any, user: Any) -> Account | None:
         return None
 
 
-@login_required
-def csv_mapper_view(request: HttpRequest) -> HttpResponse:
-    if request.method != "POST":
-        accounts = Account.objects.filter(user=request.user).order_by("name")
-        return render(request, "csv_mapper/index.html", {"accounts": accounts})
-
-    csv_file = request.FILES.get("csv_file")
-    if not csv_file:
-        accounts = Account.objects.filter(user=request.user).order_by("name")
-        return render(request, "csv_mapper/index.html", {"accounts": accounts})
-
-    rows = _apply_mapping(csv_file, _build_mapping(request.POST))
+def _import_single_file(rows: list[dict[str, Any]], user: Any, account: Account | None) -> ImportResult:
     today = date.today()
-    account = _resolve_account(request.POST, request.user)
-
     skipped_errors = 0
     skipped_future = 0
     groups: dict[tuple[int, int], list[dict[str, Any]]] = {}
@@ -119,12 +120,12 @@ def csv_mapper_view(request: HttpRequest) -> HttpResponse:
         groups.setdefault(key, []).append(row)
 
     total_imported = 0
-    months_summary: list[dict[str, Any]] = []
+    months: list[MonthSummary] = []
 
     for (year, month), group_rows in groups.items():
         month_date = date(year, month, 1)
         expense_month, created = ExpenseMonth.objects.get_or_create(
-            user=request.user,
+            user=user,
             month=month_date,
             defaults={"label": month_date.strftime("%b %y")},
         )
@@ -144,18 +145,55 @@ def csv_mapper_view(request: HttpRequest) -> HttpResponse:
         )
         count = len(group_rows)
         total_imported += count
-        months_summary.append({"month": expense_month, "count": count, "is_new": created})
+        months.append({"label": expense_month.label, "pk": expense_month.pk, "count": count, "is_new": created})
 
-    return render(
-        request,
-        "csv_mapper/result.html",
-        {
-            "total_imported": total_imported,
-            "skipped_future": skipped_future,
-            "skipped_errors": skipped_errors,
-            "months_summary": months_summary,
-        },
-    )
+    return {
+        "total_imported": total_imported,
+        "skipped_errors": skipped_errors,
+        "skipped_future": skipped_future,
+        "months": months,
+    }
+
+
+@login_required
+def csv_mapper_view(request: HttpRequest) -> HttpResponse:
+    if request.method != "POST":
+        accounts = Account.objects.filter(user=request.user).order_by("name")
+        accounts_list = [{"pk": a.pk, "name": a.name} for a in accounts]
+        return render(request, "csv_mapper/index.html", {"accounts_json": accounts_list})
+
+    csv_file = request.FILES.get("csv_file")
+    if not csv_file:
+        return JsonResponse({"error": "No file uploaded."}, status=400)
+
+    rows = _apply_mapping(csv_file, _build_mapping(request.POST))
+    account = _resolve_account(request.POST, request.user)
+    result = _import_single_file(rows, request.user, account)
+    return JsonResponse(result)
+
+
+@login_required
+def csv_mapper_bulk_view(request: HttpRequest) -> HttpResponse:
+    if request.method != "POST":
+        return HttpResponse(status=405)
+
+    try:
+        file_count = max(1, min(6, int(request.POST.get("file_count", "0"))))
+    except ValueError:
+        return JsonResponse({"error": "Invalid file_count."}, status=400)
+
+    results: list[ImportResult | dict[str, str]] = []
+    for i in range(file_count):
+        csv_file = request.FILES.get(f"file_{i}")
+        if not csv_file:
+            results.append({"error": f"File {i + 1} not uploaded."})
+            continue
+        prefix = f"{i}_"
+        rows = _apply_mapping(csv_file, _build_mapping(request.POST, prefix))
+        account = _resolve_account(request.POST, request.user, prefix)
+        results.append(_import_single_file(rows, request.user, account))
+
+    return JsonResponse({"results": results})
 
 
 @login_required
