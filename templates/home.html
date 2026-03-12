@@ -40,16 +40,23 @@
     }
   }
 
-  #carousel-prev {
-    margin-right: -1.25rem;
+  #carousel-prev:not(:hover):not(:focus),
+  #carousel-next:not(:hover):not(:focus) {
+    background-color: var(--bs-body-bg);
+  }
+
+  #carousel-prev,
+  #carousel-next {
     position: relative;
     z-index: 2;
   }
 
+  #carousel-prev {
+    margin-right: -1.25rem;
+  }
+
   #carousel-next {
     margin-left: -1.25rem;
-    position: relative;
-    z-index: 2;
   }
 </style>
 {% endblock %}
