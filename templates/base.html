@@ -46,6 +46,11 @@
             </a>
           </li>
           <li class="nav-item">
+            <a class="nav-link {% if '/insights/' in request.path %}active{% endif %}" href="{% url 'insights' %}">
+              <i class="bi bi-graph-up me-1"></i>Insights
+            </a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link" href="{% url 'month_create' %}"
               data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="New Month">
               <i class="bi bi-plus-circle"></i>

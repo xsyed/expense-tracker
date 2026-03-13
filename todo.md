@@ -5,7 +5,7 @@
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Category Budget Model & Setup Page | Done |
-| 2 | Insights Page Skeleton & Navbar Link | Not Started |
+| 2 | Insights Page Skeleton & Navbar Link | Done |
 | 3 | Budget Tab — Core Widgets | Not Started |
 | 4 | Budget Tab — Advanced Widgets | Not Started |
 | 5 | Goal Model & CRUD | Not Started |
