@@ -11,6 +11,7 @@
 from core.apps import CoreConfig
 from core.models import (
     Category,
+    CategoryBudget,
     CSVUpload,
     ExpenseMonth,
     Transaction,
@@ -22,13 +23,14 @@ from core.models import (
 )
 from core.admin import (
     CategoryAdmin,
+    CategoryBudgetAdmin,
     CSVUploadAdmin,
     ExpenseMonthAdmin,
     TransactionAdmin,
     UserAdmin,
     UserGridPreferenceAdmin,
 )
-from core.forms import CategoryForm, ExpenseMonthEditForm, _MultipleFileInput
+from core.forms import CategoryBudgetForm, CategoryForm, ExpenseMonthEditForm, _MultipleFileInput
 from core.templatetags.math_filters import floor
 
 # ── AppConfig ──────────────────────────────────────────────────────────────────
@@ -55,6 +57,10 @@ Transaction.Meta.ordering
 Transaction.TRANSACTION_TYPES
 
 CSVUpload.Meta.ordering
+
+CategoryBudget.Meta.unique_together
+CategoryBudget.Meta.verbose_name
+CategoryBudget.Meta.verbose_name_plural
 
 # ── Signal receiver ────────────────────────────────────────────────────────────
 seed_default_categories
@@ -91,6 +97,10 @@ CSVUploadAdmin.ordering
 
 UserGridPreferenceAdmin.list_display
 UserGridPreferenceAdmin.search_fields
+
+CategoryBudgetAdmin.list_display
+CategoryBudgetAdmin.list_filter
+CategoryBudgetAdmin.search_fields
 
 # ── Form Meta attributes ───────────────────────────────────────────────────────
 CategoryForm.Meta.model

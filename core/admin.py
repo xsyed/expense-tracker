@@ -5,7 +5,7 @@ from typing import Any
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import Category, CSVUpload, ExpenseMonth, Transaction, User, UserGridPreference
+from .models import Category, CategoryBudget, CSVUpload, ExpenseMonth, Transaction, User, UserGridPreference
 
 
 @admin.register(User)
@@ -50,6 +50,13 @@ class CSVUploadAdmin(admin.ModelAdmin[CSVUpload]):
     list_display = ("expense_month", "filename", "row_count", "uploaded_at")
     list_filter = ("expense_month",)
     ordering = ("-uploaded_at",)
+
+
+@admin.register(CategoryBudget)
+class CategoryBudgetAdmin(admin.ModelAdmin[CategoryBudget]):
+    list_display = ("user", "category", "amount")
+    list_filter = ("user",)
+    search_fields = ("user__email", "category__name")
 
 
 @admin.register(UserGridPreference)

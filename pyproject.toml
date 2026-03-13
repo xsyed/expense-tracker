@@ -23,7 +23,7 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 # request.user is Union[User,AnonymousUser] but @login_required guarantees User
 # django-stubs cannot narrow the type through decorators — suppress affected codes
-module = ["core.views", "core.views_auth", "core.views_months", "core.views_transactions", "core.views_csv", "core.views_categories", "core.views_charts", "core.views_accounts", "core.views_csv_mapper"]
+module = ["core.views", "core.views_auth", "core.views_months", "core.views_transactions", "core.views_csv", "core.views_categories", "core.views_charts", "core.views_accounts", "core.views_csv_mapper", "core.views_budgets"]
 disable_error_code = ["misc", "arg-type", "assignment"]
 
 [tool.django-stubs]

@@ -233,10 +233,10 @@ def csv_mapper_download_view(request: HttpRequest) -> HttpResponse:
 @login_required
 def csv_mapper_sample_view(request: HttpRequest) -> HttpResponse:
     lines = [
-        "Date,Description,Amount",
-        "2026-03-01,Coffee Shop,4.50",
-        "2026-03-02,Grocery Store,82.30",
-        "2026-03-05,Phone Bill,45.00",
+        "Date,Description,Amount,Type,Account",
+        "2026-03-01,Coffee Shop,4.50,expense,Checking",
+        "2026-03-02,Grocery Store,82.30,expense,Checking",
+        "2026-03-05,Salary,3500.00,income,Savings",
     ]
     content = "\r\n".join(lines) + "\r\n"
     response = HttpResponse(content, content_type="text/csv")

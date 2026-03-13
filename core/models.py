@@ -202,6 +202,28 @@ class CSVUpload(models.Model):
         return f"{self.filename} ({self.row_count} rows)"
 
 
+class CategoryBudget(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="category_budgets",
+    )
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.CASCADE,
+        related_name="budgets",
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        unique_together = ("user", "category")
+        verbose_name = "category budget"
+        verbose_name_plural = "category budgets"
+
+    def __str__(self) -> str:
+        return f"{self.category.name}: ${self.amount}"
+
+
 class UserGridPreference(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,

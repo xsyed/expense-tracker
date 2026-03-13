@@ -8,7 +8,7 @@ from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.http import HttpRequest
 
-from .models import Account, Category, ExpenseMonth
+from .models import Account, Category, CategoryBudget, ExpenseMonth
 from .models import User as UserModel
 
 User = get_user_model()
@@ -222,3 +222,39 @@ class CSVUploadForm(forms.Form):
             if not f.name or not f.name.lower().endswith(".csv"):
                 raise forms.ValidationError(f'"{f.name}" is not a CSV file. Only .csv files are allowed.')
         return files
+
+
+class CategoryBudgetForm(forms.Form):
+    """Dynamic form with one DecimalField per user category, keyed by category pk."""
+
+    def __init__(self, *args: Any, user: UserModel | None = None, **kwargs: Any) -> None:
+        self.user = user
+        super().__init__(*args, **kwargs)
+        if user is None:
+            return
+        categories = Category.objects.filter(user=user)
+        existing = {cb.category_id: cb.amount for cb in CategoryBudget.objects.filter(user=user)}
+        for cat in categories:
+            self.fields[f"budget_{cat.pk}"] = forms.DecimalField(
+                max_digits=10,
+                decimal_places=2,
+                required=False,
+                min_value=0,
+                initial=existing.get(cat.pk),
+                widget=forms.NumberInput(attrs={"class": "form-control", "placeholder": "0.00"}),
+                label=cat.name,
+            )
+
+    def save(self) -> None:
+        if self.user is None:
+            raise ValueError("save() called without a user")
+        for field_name, value in self.cleaned_data.items():
+            cat_pk = int(field_name.removeprefix("budget_"))
+            if value:
+                CategoryBudget.objects.update_or_create(
+                    user=self.user,
+                    category_id=cat_pk,
+                    defaults={"amount": value},
+                )
+            else:
+                CategoryBudget.objects.filter(user=self.user, category_id=cat_pk).delete()
