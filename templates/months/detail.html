@@ -4,6 +4,9 @@
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-grid.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-theme-quartz.min.css">
+<style>
+  .new-row-pending { background-color: #f0f9ff !important; }
+</style>
 {% endblock %}
 
 {% block title %}{{ expense_month.label }} — Expense Tracker{% endblock %}
@@ -65,6 +68,12 @@
       <div class="card-header d-flex justify-content-between align-items-center">
         <h6 class="mb-0"><i class="bi bi-table me-2"></i>Transactions</h6>
         <div class="d-flex align-items-center gap-2">
+          <button id="add-row-btn" class="badge bg-success border-0" type="button" style="padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700; line-height: 1;">
+            <i class="bi bi-plus-lg me-1"></i>Add Row
+          </button>
+          <button id="cancel-row-btn" class="badge bg-secondary border-0 d-none" type="button" style="padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700; line-height: 1;">
+            <i class="bi bi-x-lg me-1"></i>Cancel
+          </button>
           <button id="bulk-delete-btn" class="badge bg-danger border-0 d-none" type="button" style="padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700; line-height: 1;">
             <i class="bi bi-trash me-1"></i><span id="bulk-delete-label">Delete</span>
           </button>
@@ -219,6 +228,8 @@
   const monthId          = {{ expense_month.pk }};
   const columnVisibilityPrefs = {{ column_visibility_json|safe }};
   const GRID_COLUMNS = ['date', 'description', 'amount', 'account_name', 'transaction_type', 'category_name'];
+  let newRowPending = false;
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   // ── CSRF helper ──────────────────────────────────────────────────────────
   function getCsrfToken() {
@@ -328,6 +339,70 @@
     toast.addEventListener('hidden.bs.toast', () => toast.remove());
   }
 
+  // ── New row (pinned) ──────────────────────────────────────────────────────
+  function addNewRow() {
+    if (newRowPending) { showError('Complete or cancel the current new row first.'); return; }
+    newRowPending = true;
+    document.getElementById('add-row-btn').classList.add('d-none');
+    document.getElementById('cancel-row-btn').classList.remove('d-none');
+    gridApi.updateGridOptions({ pinnedTopRowData: [{
+      id: '__new__', date: todayStr, description: '', amount: null,
+      account_id: '', account_name: '', transaction_type: 'unassigned',
+      category_id: '', category_name: '', auto_categorized: false,
+    }] });
+    gridApi.startEditingCell({ rowIndex: 0, colKey: 'date', rowPinned: 'top' });
+  }
+
+  function cancelNewRow() {
+    gridApi.stopEditing(true);
+    gridApi.updateGridOptions({ pinnedTopRowData: [] });
+    newRowPending = false;
+    document.getElementById('cancel-row-btn').classList.add('d-none');
+    document.getElementById('add-row-btn').classList.remove('d-none');
+  }
+
+  async function submitNewRow(data) {
+    const payload = {
+      date: data.date,
+      description: data.description,
+      amount: data.amount,
+      account_id: data.account_id || '',
+      transaction_type: data.transaction_type || 'unassigned',
+      category_id: data.category_id || '',
+    };
+    if (!payload.category_id && data.category_name) {
+      const match = nameToCatMap[data.category_name];
+      payload.category_id = match ? String(match.id) : '';
+    }
+    if (!payload.account_id && data.account_name) {
+      const match = nameToAccountMap[data.account_name];
+      payload.account_id = match ? String(match.id) : '';
+    }
+    try {
+      const resp = await postJSON('/months/' + monthId + '/transactions/create/', payload);
+      const result = await resp.json();
+      if (result.success) {
+        cancelNewRow();
+        gridApi.applyTransaction({ add: [result.transaction] });
+        updateSummary(result.summary);
+        const badge = document.getElementById('tx-count');
+        if (badge) badge.textContent = parseInt(badge.textContent, 10) + 1;
+      } else {
+        const errFields = result.errors ? Object.keys(result.errors) : [];
+        if (errFields.length) {
+          const pinnedNode = gridApi.getPinnedTopRow(0);
+          gridApi.flashCells({ rowNodes: [pinnedNode], columns: errFields });
+        }
+        const msg = result.errors
+          ? Object.values(result.errors).join(' ')
+          : (result.error || 'Save failed.');
+        showError(msg);
+      }
+    } catch (e) {
+      showError('Network error. Row not saved.');
+    }
+  }
+
   // ── Bulk delete setup ──────────────────────────────────────────────────────
   const bulkDeleteBtn       = document.getElementById('bulk-delete-btn');
   const bulkDeleteLabel     = document.getElementById('bulk-delete-label');
@@ -379,6 +454,21 @@
 
   // ── Cell value changed ────────────────────────────────────────────────────
   async function onCellValueChanged(params) {
+    if (params.node.rowPinned === 'top') {
+      const d = params.data;
+      if (params.column.getColId() === 'category_name') {
+        const match = nameToCatMap[params.newValue];
+        d.category_id = match ? String(match.id) : '';
+      }
+      if (params.column.getColId() === 'account_name') {
+        const match = nameToAccountMap[params.newValue];
+        d.account_id = match ? String(match.id) : '';
+      }
+      const filled = d.date && d.description && String(d.description).trim()
+        && d.amount != null && d.amount !== '';
+      if (filled) { submitNewRow(d); }
+      return;
+    }
     const txId        = params.data.id;
     let   field       = params.column.getColId();
     let   value       = params.newValue;
@@ -740,7 +830,9 @@
         checkboxes: true,
         headerCheckbox: true,
         enableClickSelection: false,
+        isRowSelectable: (node) => node.rowPinned !== 'top',
       },
+      getRowClass: (params) => params.node.rowPinned === 'top' ? 'new-row-pending' : undefined,
       pagination: true,
       paginationPageSize: 100,
       onCellValueChanged: onCellValueChanged,
@@ -829,6 +921,9 @@
     csvUploadModal.hide();
     csvUploadForm.submit();
   });
+
+  document.getElementById('add-row-btn').addEventListener('click', addNewRow);
+  document.getElementById('cancel-row-btn').addEventListener('click', cancelNewRow);
 
 })();
 </script>

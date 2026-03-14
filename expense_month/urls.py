@@ -51,6 +51,7 @@ from core.views_insights import (
 from core.views_months import month_create_view, month_delete_view, month_detail_view, month_edit_view, month_list_view
 from core.views_transactions import (
     transaction_bulk_delete_view,
+    transaction_create_view,
     transaction_delete_view,
     transaction_update_view,
     update_grid_preferences_view,
@@ -82,6 +83,11 @@ urlpatterns = [
         "months/<int:month_id>/transactions/<int:tx_id>/delete/",
         transaction_delete_view,
         name="transaction_delete",
+    ),
+    path(
+        "months/<int:month_id>/transactions/create/",
+        transaction_create_view,
+        name="transaction_create",
     ),
     path(
         "months/<int:month_id>/transactions/bulk-delete/",
