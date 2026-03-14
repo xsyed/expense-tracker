@@ -55,7 +55,7 @@
         <label class="form-label mb-0 fw-semibold" for="budget-month-select">Month</label>
       </div>
       <div class="col-md-3 col-sm-5">
-        <select id="budget-month-select" class="form-select"></select>
+        <select id="budget-month-select" class="form-select" autocomplete="off"></select>
       </div>
     </div>
 
@@ -122,6 +122,32 @@
         </div>
       </div>
 
+      <!-- Donut + Burn Rate row -->
+      <div class="row g-3 mt-3">
+        <div class="col-lg-5">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h6 class="card-title fw-semibold mb-3">Budget Health</h6>
+              <div id="health-donut-empty" class="text-center text-muted py-5 d-none">
+                No budget data to display.
+              </div>
+              <div id="health-donut-chart"></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-7">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h6 class="card-title fw-semibold mb-3">Daily Burn Rate</h6>
+              <div id="burn-rate-empty" class="text-center text-muted py-5 d-none">
+                No budget data to display.
+              </div>
+              <div id="burn-rate-chart"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -153,6 +179,15 @@
   const STATUS_RED    = '#dc3545';
 
   let budgetChart = null;
+  let healthDonutChart = null;
+  let burnRateChart = null;
+  let budgetFetchController = null;
+  let burnRateFetchController = null;
+  let budgetRequestVersion = 0;
+  let burnRateRequestVersion = 0;
+  let updatingSelect = false;
+  let selectedBudgetMonth = '';
+  let blockChangeAfterPopulate = false;
 
   function statusColor(pctUsed) {
     if (pctUsed >= 100) return STATUS_RED;
@@ -164,7 +199,17 @@
     return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
+  function syncMonthSelect(selectedMonth) {
+    const select = document.getElementById('budget-month-select');
+    if (select.value === selectedMonth) return;
+    updatingSelect = true;
+    select.value = selectedMonth;
+    updatingSelect = false;
+  }
+
   function populateMonthSelect(availableMonths, selectedMonth) {
+    updatingSelect = true;
+    blockChangeAfterPopulate = true;
     const select = document.getElementById('budget-month-select');
     select.innerHTML = '';
     availableMonths.forEach(function(m) {
@@ -177,6 +222,8 @@
       if (m === selectedMonth) opt.selected = true;
       select.appendChild(opt);
     });
+    setTimeout(function() { blockChangeAfterPopulate = false; }, 0);
+    updatingSelect = false;
   }
 
   function renderSummaryCards(totals) {
@@ -265,27 +312,188 @@
     budgetChart.render();
   }
 
+  function renderHealthDonut(categories) {
+    const donutEl = document.getElementById('health-donut-chart');
+    const emptyEl = document.getElementById('health-donut-empty');
+
+    if (healthDonutChart) {
+      healthDonutChart.destroy();
+      healthDonutChart = null;
+    }
+
+    if (categories.length === 0) {
+      emptyEl.classList.remove('d-none');
+      return;
+    }
+    emptyEl.classList.add('d-none');
+
+    var onTrack = 0, warning = 0, overBudget = 0;
+    categories.forEach(function(c) {
+      if (c.pct_used > 100) overBudget++;
+      else if (c.pct_used >= 80) warning++;
+      else onTrack++;
+    });
+
+    var options = {
+      chart: {
+        type: 'donut',
+        height: 320,
+        fontFamily: 'inherit',
+        animations: { enabled: false },
+      },
+      series: [onTrack, warning, overBudget],
+      labels: ['On Track (<80%)', 'Warning (80–100%)', 'Over Budget (>100%)'],
+      colors: [STATUS_GREEN, STATUS_YELLOW, STATUS_RED],
+      legend: { position: 'bottom', fontSize: '13px' },
+      dataLabels: { enabled: true, formatter: function(_val, opts) {
+        return [onTrack, warning, overBudget][opts.seriesIndex];
+      }},
+      tooltip: {
+        y: { formatter: function(val) {
+          var total = onTrack + warning + overBudget;
+          var pct = total > 0 ? (val / total * 100).toFixed(1) : '0.0';
+          return val + ' categories (' + pct + '%)';
+        }},
+      },
+      plotOptions: {
+        pie: {
+          donut: {
+            size: '55%',
+            labels: {
+              show: true,
+              total: {
+                show: true,
+                label: 'Categories',
+                formatter: function(w) {
+                  return w.globals.seriesTotals.reduce(function(a, b) { return a + b; }, 0);
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    healthDonutChart = new ApexCharts(donutEl, options);
+    healthDonutChart.render();
+  }
+
+  function fetchBurnRateData(month) {
+    var url = '/api/insights/burn-rate/' + (month ? '?month=' + encodeURIComponent(month) : '');
+    var chartEl = document.getElementById('burn-rate-chart');
+    var emptyEl = document.getElementById('burn-rate-empty');
+
+    if (burnRateFetchController) {
+      burnRateFetchController.abort();
+    }
+    burnRateFetchController = new AbortController();
+    burnRateRequestVersion += 1;
+    var requestVersion = burnRateRequestVersion;
+
+    fetch(url, { signal: burnRateFetchController.signal })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (requestVersion !== burnRateRequestVersion) {
+          return;
+        }
+
+        if (burnRateChart) {
+          burnRateChart.destroy();
+          burnRateChart = null;
+        }
+
+        if (data.days.length === 0) {
+          emptyEl.classList.remove('d-none');
+          return;
+        }
+        emptyEl.classList.add('d-none');
+
+        var options = {
+          chart: {
+            type: 'line',
+            height: 320,
+            toolbar: { show: false },
+            fontFamily: 'inherit',
+            animations: { enabled: false },
+          },
+          series: [
+            { name: 'Actual Spending', data: data.actual },
+            { name: 'Ideal Pace', data: data.ideal },
+          ],
+          xaxis: {
+            categories: data.days,
+            title: { text: 'Day of Month' },
+            labels: { hideOverlappingLabels: true },
+          },
+          yaxis: {
+            title: { text: 'Cumulative ($)' },
+            labels: { formatter: function(val) { return fmtCurrency(val); } },
+          },
+          colors: [STATUS_RED, '#6c757d'],
+          stroke: { width: [3, 2], dashArray: [0, 5] },
+          tooltip: {
+            y: { formatter: function(val) { return fmtCurrency(val); } },
+          },
+          legend: { position: 'top', fontSize: '13px' },
+          grid: { borderColor: '#e9ecef' },
+        };
+
+        burnRateChart = new ApexCharts(chartEl, options);
+        burnRateChart.render();
+      })
+      .catch(function(err) {
+        if (err && err.name === 'AbortError') {
+          return;
+        }
+        console.error('Failed to fetch burn rate data:', err);
+      });
+  }
+
   function fetchBudgetData(month) {
     const url = '/api/insights/budget-data/' + (month ? '?month=' + encodeURIComponent(month) : '');
+
+    if (budgetFetchController) {
+      budgetFetchController.abort();
+    }
+    budgetFetchController = new AbortController();
+    budgetRequestVersion += 1;
+    const requestVersion = budgetRequestVersion;
 
     document.getElementById('budget-loading').classList.remove('d-none');
     document.getElementById('budget-empty').classList.add('d-none');
     document.getElementById('budget-content').classList.add('d-none');
 
-    fetch(url)
+    fetch(url, { signal: budgetFetchController.signal })
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        populateMonthSelect(data.available_months, data.selected_month);
+        if (requestVersion !== budgetRequestVersion) return;
+
+        if (document.getElementById('budget-month-select').options.length === 0) {
+          populateMonthSelect(data.available_months, data.selected_month);
+        }
+        selectedBudgetMonth = data.selected_month;
+        syncMonthSelect(data.selected_month);
         document.getElementById('budget-loading').classList.add('d-none');
 
         if (data.categories.length === 0) {
           document.getElementById('budget-empty').classList.remove('d-none');
+          renderHealthDonut([]);
+          fetchBurnRateData(data.selected_month);
           return;
         }
 
+        document.getElementById('budget-content').classList.remove('d-none');
         renderSummaryCards(data.totals);
         renderBudgetChart(data.categories);
-        document.getElementById('budget-content').classList.remove('d-none');
+        renderHealthDonut(data.categories);
+        fetchBurnRateData(data.selected_month);
+      })
+      .catch(function(err) {
+        if (err && err.name === 'AbortError') {
+          return;
+        }
+        console.error('Failed to fetch budget insights data:', err);
+        document.getElementById('budget-loading').classList.add('d-none');
       });
   }
 
@@ -293,6 +501,9 @@
     fetchBudgetData('');
 
     document.getElementById('budget-month-select').addEventListener('change', function() {
+      if (updatingSelect || blockChangeAfterPopulate) return;
+      if (this.value === selectedBudgetMonth) return;
+      selectedBudgetMonth = this.value;
       fetchBudgetData(this.value);
     });
   });

@@ -35,7 +35,7 @@ from core.views_csv_mapper import (
     csv_mapper_sample_view,
     csv_mapper_view,
 )
-from core.views_insights import budget_data_view, insights_view
+from core.views_insights import budget_data_view, burn_rate_data_view, insights_view
 from core.views_months import month_create_view, month_delete_view, month_detail_view, month_edit_view, month_list_view
 from core.views_transactions import (
     transaction_bulk_delete_view,
@@ -86,5 +86,6 @@ urlpatterns = [
     path("csv-mapper/download/", csv_mapper_download_view, name="csv_mapper_download"),
     path("csv-mapper/sample.csv", csv_mapper_sample_view, name="csv_mapper_sample"),
     path("api/insights/budget-data/", budget_data_view, name="budget_data"),
+    path("api/insights/burn-rate/", burn_rate_data_view, name="burn_rate_data"),
     path("insights/", insights_view, name="insights"),
 ]

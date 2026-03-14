@@ -7,6 +7,12 @@ Format: **What went wrong → Root cause → Rule to enforce**
 
 <!-- Add new lessons below this line. Most recent first. -->
 
+## When user asks for doc update after fix, update artifact immediately
+
+**What went wrong**: I fixed the bug in code but left `bug.md` describing only the earlier attempted fix.
+**Root cause**: I closed the task at code validation and missed the user-visible task artifact.
+**Rule**: If the workspace includes a bug/task note tied to the issue, update it to match the final implemented fix before finishing.
+
 ## Always activate the virtual environment before running any command
 
 **What went wrong**: Commands like `make check`, `mypy`, `ruff`, `python manage.py ...` fail or use the wrong interpreter when the venv is not active.

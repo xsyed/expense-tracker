@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import datetime
 from decimal import Decimal
 
@@ -23,14 +24,20 @@ def budget_data_view(request: HttpRequest) -> JsonResponse:
     expense_months = ExpenseMonth.objects.filter(user=user).values_list("month", flat=True).order_by("-month")
     available_months = [m.strftime("%Y-%m") for m in expense_months]
 
-    today = datetime.date.today()
-    current_month_str = today.strftime("%Y-%m")
-    if current_month_str not in available_months:
-        available_months.insert(0, current_month_str)
+    if not available_months:
+        return JsonResponse(
+            {
+                "available_months": [],
+                "selected_month": "",
+                "categories": [],
+                "totals": {"budgeted": 0.0, "spent": 0.0, "remaining": 0.0, "pct_used": 0.0},
+            }
+        )
 
-    month_param = request.GET.get("month", current_month_str)
+    default_month = available_months[0]
+    month_param = request.GET.get("month", default_month)
     if month_param not in available_months:
-        month_param = available_months[0]
+        month_param = default_month
 
     try:
         year, month = int(month_param[:4]), int(month_param[5:7])
@@ -103,3 +110,62 @@ def budget_data_view(request: HttpRequest) -> JsonResponse:
             },
         }
     )
+
+
+def _parse_month_param(raw: str) -> tuple[int, int] | None:
+    try:
+        return int(raw[:4]), int(raw[5:7])
+    except (ValueError, IndexError):
+        return None
+
+
+@login_required
+def burn_rate_data_view(request: HttpRequest) -> JsonResponse:
+    user = request.user
+    today = datetime.date.today()
+    month_param = request.GET.get("month", today.strftime("%Y-%m"))
+
+    parsed = _parse_month_param(month_param)
+    if parsed is None:
+        return JsonResponse({"error": "Invalid month parameter"}, status=400)
+    year, month = parsed
+
+    budgets = CategoryBudget.objects.filter(user=user).select_related("category")
+    total_budget = float(sum(b.amount for b in budgets))
+    if total_budget == 0:
+        return JsonResponse({"days": [], "actual": [], "ideal": [], "total_budget": 0})
+
+    days_in_month = calendar.monthrange(year, month)[1]
+    month_start = datetime.date(year, month, 1)
+    month_end = datetime.date(year, month, days_in_month)
+
+    is_current_month = year == today.year and month == today.month
+    last_day = today.day if is_current_month else days_in_month
+
+    category_ids = [b.category_id for b in budgets]
+    daily_totals: dict[datetime.date, Decimal] = dict(
+        Transaction.objects.filter(
+            expense_month__user=user,
+            transaction_type="expense",
+            date__gte=month_start,
+            date__lte=month_end,
+            category_id__in=category_ids,
+        )
+        .values_list("date")
+        .annotate(total=Sum("amount"))
+    )
+
+    days: list[int] = []
+    actual: list[float] = []
+    ideal: list[float] = []
+    cumulative = 0.0
+    ideal_daily = total_budget / days_in_month
+
+    for day in range(1, last_day + 1):
+        d = datetime.date(year, month, day)
+        cumulative += float(daily_totals.get(d, 0))
+        days.append(day)
+        actual.append(round(cumulative, 2))
+        ideal.append(round(ideal_daily * day, 2))
+
+    return JsonResponse({"days": days, "actual": actual, "ideal": ideal, "total_budget": total_budget})
