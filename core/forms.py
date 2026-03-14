@@ -8,7 +8,7 @@ from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.http import HttpRequest
 
-from .models import Account, Category, CategoryBudget, ExpenseMonth
+from .models import Account, Category, CategoryBudget, ExpenseMonth, Goal, GoalContribution
 from .models import User as UserModel
 
 User = get_user_model()
@@ -258,3 +258,44 @@ class CategoryBudgetForm(forms.Form):
                 )
             else:
                 CategoryBudget.objects.filter(user=self.user, category_id=cat_pk).delete()
+
+
+class GoalForm(forms.ModelForm[Goal]):
+    class Meta:
+        model = Goal
+        fields = ["name", "goal_type", "target_amount", "category", "deadline"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. Vacation Fund"}),
+            "goal_type": forms.Select(attrs={"class": "form-select"}),
+            "target_amount": forms.NumberInput(attrs={"class": "form-control", "placeholder": "0.00"}),
+            "category": forms.Select(attrs={"class": "form-select"}),
+            "deadline": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+        }
+
+    def __init__(self, *args: Any, user: UserModel | None = None, **kwargs: Any) -> None:
+        self.user = user
+        super().__init__(*args, **kwargs)
+        cat_field = cast(forms.ModelChoiceField[Category], self.fields["category"])
+        if user is not None:
+            cat_field.queryset = Category.objects.filter(user=user)
+        cat_field.required = False
+        self.fields["deadline"].required = False
+
+    def clean(self) -> dict[str, Any]:
+        cleaned_data: dict[str, Any] = super().clean() or {}
+        goal_type = cleaned_data.get("goal_type")
+        category = cleaned_data.get("category")
+        if goal_type == "spending" and not category:
+            self.add_error("category", "A category is required for spending goals.")
+        return cleaned_data
+
+
+class GoalContributionForm(forms.ModelForm[GoalContribution]):
+    class Meta:
+        model = GoalContribution
+        fields = ["amount", "date", "note"]
+        widgets = {
+            "amount": forms.NumberInput(attrs={"class": "form-control", "placeholder": "0.00"}),
+            "date": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+            "note": forms.TextInput(attrs={"class": "form-control", "placeholder": "Optional note"}),
+        }

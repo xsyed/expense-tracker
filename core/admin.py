@@ -5,7 +5,17 @@ from typing import Any
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import Category, CategoryBudget, CSVUpload, ExpenseMonth, Transaction, User, UserGridPreference
+from .models import (
+    Category,
+    CategoryBudget,
+    CSVUpload,
+    ExpenseMonth,
+    Goal,
+    GoalContribution,
+    Transaction,
+    User,
+    UserGridPreference,
+)
 
 
 @admin.register(User)
@@ -57,6 +67,20 @@ class CategoryBudgetAdmin(admin.ModelAdmin[CategoryBudget]):
     list_display = ("user", "category", "amount")
     list_filter = ("user",)
     search_fields = ("user__email", "category__name")
+
+
+@admin.register(Goal)
+class GoalAdmin(admin.ModelAdmin[Goal]):
+    list_display = ("name", "user", "goal_type", "target_amount", "deadline", "created_at")
+    list_filter = ("goal_type",)
+    search_fields = ("name", "user__email")
+
+
+@admin.register(GoalContribution)
+class GoalContributionAdmin(admin.ModelAdmin[GoalContribution]):
+    list_display = ("goal", "amount", "date", "note", "created_at")
+    list_filter = ("date",)
+    ordering = ("-date",)
 
 
 @admin.register(UserGridPreference)

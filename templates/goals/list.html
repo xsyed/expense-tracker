@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Goals{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="mb-0"><i class="bi bi-bullseye me-2"></i>Goals</h2>
+  <a href="{% url 'goal_create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>New Goal
+  </a>
+</div>
+
+{% if goal_data %}
+<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4">
+  {% for item in goal_data %}
+  {% with goal=item.goal progress=item.progress pct=item.pct %}
+  <div class="col">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">{{ goal.name }}</span>
+        <span class="badge {% if goal.goal_type == 'savings' %}bg-success{% else %}bg-info text-dark{% endif %}">
+          {{ goal.get_goal_type_display }}
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div class="d-flex justify-content-between small text-muted mb-1">
+            {% if goal.goal_type == 'savings' %}
+            <span>${{ progress }} of ${{ goal.target_amount }}</span>
+            {% else %}
+            <span>${{ progress }} spent of ${{ goal.target_amount }} limit</span>
+            {% endif %}
+            <span>{{ pct }}%</span>
+          </div>
+          <div class="progress" style="height: 10px;">
+            <div class="progress-bar
+              {% if goal.goal_type == 'spending' %}
+                {% if pct >= 100 %}bg-danger{% elif pct >= 80 %}bg-warning{% else %}bg-success{% endif %}
+              {% else %}
+                bg-success
+              {% endif %}"
+              role="progressbar"
+              style="width: {{ pct }}%"
+              aria-valuenow="{{ pct }}"
+              aria-valuemin="0"
+              aria-valuemax="100">
+            </div>
+          </div>
+        </div>
+        {% if goal.category %}
+        <p class="small text-muted mb-1"><i class="bi bi-tag me-1"></i>{{ goal.category.name }}</p>
+        {% endif %}
+        {% if goal.deadline %}
+        <p class="small text-muted mb-0"><i class="bi bi-calendar me-1"></i>Deadline: {{ goal.deadline }}</p>
+        {% endif %}
+      </div>
+      <div class="card-footer d-flex align-items-center gap-2">
+        {% if goal.goal_type == 'savings' %}
+        <a href="{% url 'goal_contribute' goal.pk %}" class="btn btn-sm btn-success">
+          <i class="bi bi-plus-circle me-1"></i>Log Contribution
+        </a>
+        {% endif %}
+        <a href="{% url 'goal_edit' goal.pk %}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-pencil me-1"></i>Edit
+        </a>
+        <a href="{% url 'goal_delete' goal.pk %}" class="btn btn-sm btn-outline-danger ms-auto">
+          <i class="bi bi-trash"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body text-center text-muted py-5">
+    <i class="bi bi-bullseye display-4 mb-3 d-block"></i>
+    <p class="mb-3">No goals yet.</p>
+    <a href="{% url 'goal_create' %}" class="btn btn-primary">
+      <i class="bi bi-plus-lg me-1"></i>Create your first goal
+    </a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

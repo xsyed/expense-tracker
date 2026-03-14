@@ -8,7 +8,7 @@
 | 2 | Insights Page Skeleton & Navbar Link | Done |
 | 3 | Budget Tab — Core Widgets | Done |
 | 4 | Budget Tab — Advanced Widgets | Done |
-| 5 | Goal Model & CRUD | Not Started |
+| 5 | Goal Model & CRUD | Done |
 | 6 | Goals Tab — Core Widgets | Not Started |
 | 7 | Goals Tab — Advanced Widgets | Not Started |
 | 8 | Recurring Expenses Tab | Not Started |
