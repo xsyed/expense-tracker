@@ -271,7 +271,71 @@
 
   </div>
   <div class="tab-pane fade" id="trends" role="tabpanel" aria-labelledby="trends-tab">
-    <p class="text-muted">Coming soon.</p>
+
+    <!-- Range selector -->
+    <div class="d-flex align-items-center mb-4">
+      <span class="fw-semibold me-3">Time Range</span>
+      <div class="btn-group" id="trends-range-group">
+        <button type="button" class="btn btn-outline-primary btn-sm" data-months="3">3M</button>
+        <button type="button" class="btn btn-outline-primary btn-sm active" data-months="6">6M</button>
+        <button type="button" class="btn btn-outline-primary btn-sm" data-months="12">12M</button>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="trends-loading" class="text-center py-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading…</span>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="trends-empty" class="text-center py-5 d-none">
+      <i class="bi bi-bar-chart-line fs-1 text-muted"></i>
+      <p class="text-muted mt-3">No category spending data found for the selected period.</p>
+    </div>
+
+    <!-- Content -->
+    <div id="trends-content" class="d-none">
+
+      <!-- Sparkline Grid -->
+      <h6 class="fw-semibold mb-3">Category Sparklines</h6>
+      <div id="trends-sparkline-grid" class="row g-3 mb-4"></div>
+
+      <!-- Movers Table -->
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h6 class="card-title fw-semibold mb-3">Spending Up ↑</h6>
+              <div id="movers-up-empty" class="text-muted small d-none">No increases to show.</div>
+              <table class="table table-sm mb-0" id="movers-up-table">
+                <thead>
+                  <tr><th>Category</th><th class="text-end">Change</th><th class="text-end">Amount</th></tr>
+                </thead>
+                <tbody id="movers-up-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h6 class="card-title fw-semibold mb-3">Spending Down ↓</h6>
+              <div id="movers-down-empty" class="text-muted small d-none">No decreases to show.</div>
+              <table class="table table-sm mb-0" id="movers-down-table">
+                <thead>
+                  <tr><th>Category</th><th class="text-end">Change</th><th class="text-end">Amount</th></tr>
+                </thead>
+                <tbody id="movers-down-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
   </div>
   <div class="tab-pane fade" id="accounts-overview" role="tabpanel" aria-labelledby="accounts-tab">
     <p class="text-muted">Coming soon.</p>
@@ -1042,6 +1106,138 @@
         recurringSortAsc = (key === 'description');
       }
       renderRecurringTable();
+    });
+  });
+
+  // ── Category Trends Tab ──
+
+  let trendsLoaded = false;
+  let trendsMonths = 6;
+  let trendSparklineCharts = [];
+
+  const TREND_ARROW = { up: '↑', down: '↓', stable: '→' };
+  const TREND_COLOR = { up: STATUS_RED, down: STATUS_GREEN, stable: '#6c757d' };
+
+  function destroyTrendSparklines() {
+    trendSparklineCharts.forEach(function(c) { c.destroy(); });
+    trendSparklineCharts = [];
+  }
+
+  function renderTrendCard(cat, container) {
+    var col = document.createElement('div');
+    col.className = 'col-sm-6 col-md-4 col-lg-3';
+
+    var arrow = TREND_ARROW[cat.direction] || '→';
+    var color = TREND_COLOR[cat.direction] || '#6c757d';
+    var pctText = cat.pct_change !== null ? (cat.pct_change > 0 ? '+' : '') + cat.pct_change + '%' : '—';
+    var sparkId = 'sparkline-' + container.children.length;
+
+    col.innerHTML =
+      '<div class="card border-0 shadow-sm h-100">' +
+        '<div class="card-body py-3 px-3">' +
+          '<div class="fw-semibold small mb-2">' + escapeHtml(cat.name) + '</div>' +
+          '<div id="' + sparkId + '" class="mb-2"></div>' +
+          '<div class="d-flex justify-content-between align-items-center">' +
+            '<span style="color:' + color + ';font-size:1.2rem;font-weight:bold;">' + arrow + '</span>' +
+            '<span class="small fw-semibold" style="color:' + color + ';">' + pctText + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    container.appendChild(col);
+
+    var sparkColor = cat.direction === 'down' ? STATUS_GREEN : (cat.direction === 'up' ? STATUS_RED : '#6c757d');
+    var chart = new ApexCharts(document.getElementById(sparkId), {
+      chart: {
+        type: 'line',
+        width: '100%',
+        height: 35,
+        sparkline: { enabled: true },
+        animations: { enabled: false },
+      },
+      series: [{ data: cat.amounts }],
+      stroke: { width: 2, curve: 'smooth' },
+      colors: [sparkColor],
+      tooltip: {
+        fixed: { enabled: false },
+        x: { show: false },
+        y: { formatter: function(val) { return fmtCurrency(val); } },
+      },
+    });
+    chart.render();
+    trendSparklineCharts.push(chart);
+  }
+
+  function renderMoversTable(movers, tbodyId, emptyId) {
+    var tbody = document.getElementById(tbodyId);
+    var emptyEl = document.getElementById(emptyId);
+    tbody.innerHTML = '';
+    if (movers.length === 0) {
+      emptyEl.classList.remove('d-none');
+      return;
+    }
+    emptyEl.classList.add('d-none');
+    movers.forEach(function(m) {
+      var color = m.pct_change > 0 ? STATUS_RED : STATUS_GREEN;
+      var sign = m.pct_change > 0 ? '+' : '';
+      var absSign = m.abs_change >= 0 ? '+' : '-';
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + escapeHtml(m.name) + '</td>' +
+        '<td class="text-end fw-semibold" style="color:' + color + ';">' + sign + m.pct_change + '%</td>' +
+        '<td class="text-end" style="color:' + color + ';">' + absSign + fmtCurrency(Math.abs(m.abs_change)) + '</td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  function fetchTrendsData(numMonths) {
+    document.getElementById('trends-loading').classList.remove('d-none');
+    document.getElementById('trends-empty').classList.add('d-none');
+    document.getElementById('trends-content').classList.add('d-none');
+    destroyTrendSparklines();
+
+    fetch('/api/insights/category-trends/?months=' + numMonths)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        document.getElementById('trends-loading').classList.add('d-none');
+        if (data.categories.length === 0) {
+          document.getElementById('trends-empty').classList.remove('d-none');
+          return;
+        }
+        document.getElementById('trends-content').classList.remove('d-none');
+
+        var grid = document.getElementById('trends-sparkline-grid');
+        grid.innerHTML = '';
+        data.categories.forEach(function(cat) {
+          renderTrendCard(cat, grid);
+        });
+
+        renderMoversTable(data.movers_up, 'movers-up-body', 'movers-up-empty');
+        renderMoversTable(data.movers_down, 'movers-down-body', 'movers-down-empty');
+      })
+      .catch(function(err) {
+        console.error('Failed to fetch trends data:', err);
+        document.getElementById('trends-loading').classList.add('d-none');
+      });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('trends-tab').addEventListener('shown.bs.tab', function() {
+      if (!trendsLoaded) {
+        trendsLoaded = true;
+        fetchTrendsData(trendsMonths);
+      }
+    });
+
+    document.getElementById('trends-range-group').addEventListener('click', function(e) {
+      var btn = e.target.closest('button[data-months]');
+      if (!btn) return;
+      var months = parseInt(btn.dataset.months, 10);
+      if (months === trendsMonths) return;
+      trendsMonths = months;
+      this.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      trendsLoaded = true;
+      fetchTrendsData(months);
     });
   });
 </script>

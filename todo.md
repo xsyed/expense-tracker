@@ -12,7 +12,7 @@
 | 6 | Goals Tab — Core Widgets | Done |
 | 7 | Goals Tab — Advanced Widgets | Done |
 | 8 | Recurring Expenses Tab | Done |
-| 9 | Category Trends Tab | Not Started |
+| 9 | Category Trends Tab | Done |
 | 10 | Accounts Overview Tab | Not Started |
 | 11 | Forecasting Tab | Not Started |
 

@@ -22,6 +22,7 @@ from core.views_accounts import account_delete_view, account_edit_view, account_
 from core.views_auth import home_view
 from core.views_budgets import budget_setup_view
 from core.views_categories import category_delete_view, category_edit_view, category_list_view
+from core.views_category_trends import category_trends_data_view
 from core.views_charts import (
     chart_category_breakdown_view,
     chart_month_over_month_view,
@@ -100,6 +101,7 @@ urlpatterns = [
     path("api/insights/goals/<int:pk>/projection/", goal_projection_data_view, name="goal_projection_data"),
     path("api/insights/goals/<int:pk>/spending-trend/", spending_trend_data_view, name="spending_trend_data"),
     path("api/insights/recurring-data/", recurring_data_view, name="recurring_data"),
+    path("api/insights/category-trends/", category_trends_data_view, name="category_trends_data"),
     path("insights/", insights_view, name="insights"),
     path("goals/", goal_list_view, name="goal_list"),
     path("goals/create/", goal_create_view, name="goal_create"),
