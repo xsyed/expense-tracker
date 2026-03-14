@@ -3,48 +3,8 @@
 {% block title %}Insights — Expense Tracker{% endblock %}
 
 {% block content %}
-<h2 class="mb-4"><i class="bi bi-graph-up me-2"></i>Insights</h2>
-
-<ul class="nav nav-tabs" id="insightsTabs" role="tablist">
-  <li class="nav-item" role="presentation">
-    <button class="nav-link active" id="budgets-tab" data-bs-toggle="tab" data-bs-target="#budgets"
-            type="button" role="tab" aria-controls="budgets" aria-selected="true">
-      <i class="bi bi-pie-chart me-1"></i>Budgets
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="goals-tab" data-bs-toggle="tab" data-bs-target="#goals"
-            type="button" role="tab" aria-controls="goals" aria-selected="false">
-      <i class="bi bi-bullseye me-1"></i>Goals
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="recurring-tab" data-bs-toggle="tab" data-bs-target="#recurring"
-            type="button" role="tab" aria-controls="recurring" aria-selected="false">
-      <i class="bi bi-arrow-repeat me-1"></i>Recurring Expenses
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="trends-tab" data-bs-toggle="tab" data-bs-target="#trends"
-            type="button" role="tab" aria-controls="trends" aria-selected="false">
-      <i class="bi bi-bar-chart-line me-1"></i>Category Trends
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="accounts-tab" data-bs-toggle="tab" data-bs-target="#accounts-overview"
-            type="button" role="tab" aria-controls="accounts-overview" aria-selected="false">
-      <i class="bi bi-credit-card me-1"></i>Accounts Overview
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="forecasting-tab" data-bs-toggle="tab" data-bs-target="#forecasting"
-            type="button" role="tab" aria-controls="forecasting" aria-selected="false">
-      <i class="bi bi-lightning me-1"></i>Forecasting
-    </button>
-  </li>
-</ul>
-
-<div class="tab-content pt-4" id="insightsTabContent">
+<div class="d-flex align-items-start gap-3">
+<div class="tab-content flex-grow-1 min-w-0" id="insightsTabContent">
 
   <!-- ── Budget Tab ── -->
   <div class="tab-pane fade show active" id="budgets" role="tabpanel" aria-labelledby="budgets-tab">
@@ -114,17 +74,8 @@
         </div>
       </div>
 
-      <!-- Bar chart -->
-      <div class="card border-0 shadow-sm">
-        <div class="card-body">
-          <h6 class="card-title fw-semibold mb-3">Budget vs. Actual Spending</h6>
-          <div id="budget-chart"></div>
-        </div>
-      </div>
-
-      <!-- Donut + Burn Rate row -->
       <div class="row g-3 mt-3">
-        <div class="col-lg-5">
+        <div class="col-lg-6">
           <div class="card border-0 shadow-sm h-100">
             <div class="card-body">
               <h6 class="card-title fw-semibold mb-3">Budget Health</h6>
@@ -135,7 +86,7 @@
             </div>
           </div>
         </div>
-        <div class="col-lg-7">
+        <div class="col-lg-6">
           <div class="card border-0 shadow-sm h-100">
             <div class="card-body">
               <h6 class="card-title fw-semibold mb-3">Daily Burn Rate</h6>
@@ -145,6 +96,14 @@
               <div id="burn-rate-chart"></div>
             </div>
           </div>
+        </div>
+
+      </div>
+
+      <div class="card border-0 shadow-sm mt-3">
+        <div class="card-body">
+          <h6 class="card-title fw-semibold mb-3">Budget vs. Actual Spending</h6>
+          <div id="budget-chart"></div>
         </div>
       </div>
 
@@ -177,26 +136,29 @@
     <!-- Content -->
     <div id="goals-content" class="d-none">
       <div id="goals-cards" class="row g-3 mb-4"></div>
-      <div class="card border-0 shadow-sm mt-2">
-        <div class="card-body">
-          <h6 class="card-title fw-semibold mb-3">Contribution Timeline</h6>
-          <div id="goals-timeline-empty" class="text-center text-muted py-4 d-none">
-            No contributions recorded yet.
-          </div>
-          <div id="goals-timeline-chart"></div>
-        </div>
-      </div>
-
-      <!-- Goal Projection Chart (Savings Goals) -->
-      <div id="projection-section" class="d-none mt-4">
-        <div class="card border-0 shadow-sm">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h6 class="card-title fw-semibold mb-0">Goal Projection</h6>
-              <select id="projection-goal-select" class="form-select form-select-sm w-auto"></select>
+      <div class="row g-3">
+        <div class="col-lg-6">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h6 class="card-title fw-semibold mb-3">Contribution Timeline</h6>
+              <div id="goals-timeline-empty" class="text-center text-muted py-4 d-none">
+                No contributions recorded yet.
+              </div>
+              <div id="goals-timeline-chart"></div>
             </div>
-            <div id="projection-chart"></div>
-            <div id="projection-completion" class="small text-muted mt-2"></div>
+          </div>
+        </div>
+        <!-- Goal Projection Chart (Savings Goals) -->
+        <div id="projection-section" class="col-lg-6 d-none">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="card-title fw-semibold mb-0">Goal Projection</h6>
+                <select id="projection-goal-select" class="form-select form-select-sm w-auto"></select>
+              </div>
+              <div id="projection-chart"></div>
+              <div id="projection-completion" class="small text-muted mt-2"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -469,6 +431,33 @@
     </div>
 
   </div>
+</div>
+<nav class="nav flex-column nav-pills ms-2" id="insightsTabs" role="tablist" style="min-width:160px">
+  <button class="nav-link active text-start" id="budgets-tab" data-bs-toggle="tab" data-bs-target="#budgets"
+          type="button" role="tab" aria-controls="budgets" aria-selected="true">
+    <i class="bi bi-pie-chart me-1"></i>Budgets
+  </button>
+  <button class="nav-link text-start" id="goals-tab" data-bs-toggle="tab" data-bs-target="#goals"
+          type="button" role="tab" aria-controls="goals" aria-selected="false">
+    <i class="bi bi-bullseye me-1"></i>Goals
+  </button>
+  <button class="nav-link text-start" id="recurring-tab" data-bs-toggle="tab" data-bs-target="#recurring"
+          type="button" role="tab" aria-controls="recurring" aria-selected="false">
+    <i class="bi bi-arrow-repeat me-1"></i>Recurring
+  </button>
+  <button class="nav-link text-start" id="trends-tab" data-bs-toggle="tab" data-bs-target="#trends"
+          type="button" role="tab" aria-controls="trends" aria-selected="false">
+    <i class="bi bi-bar-chart-line me-1"></i>Category Trends
+  </button>
+  <button class="nav-link text-start" id="accounts-tab" data-bs-toggle="tab" data-bs-target="#accounts-overview"
+          type="button" role="tab" aria-controls="accounts-overview" aria-selected="false">
+    <i class="bi bi-credit-card me-1"></i>Accounts
+  </button>
+  <button class="nav-link text-start" id="forecasting-tab" data-bs-toggle="tab" data-bs-target="#forecasting"
+          type="button" role="tab" aria-controls="forecasting" aria-selected="false">
+    <i class="bi bi-lightning me-1"></i>Forecasting
+  </button>
+</nav>
 </div>
 {% endblock %}
 
