@@ -602,21 +602,16 @@
     };
 
     if (budgetChart) {
-      budgetChart.destroy();
-      budgetChart = null;
+      budgetChart.updateOptions(options);
+    } else {
+      budgetChart = new ApexCharts(document.getElementById('budget-chart'), options);
+      budgetChart.render();
     }
-    budgetChart = new ApexCharts(document.getElementById('budget-chart'), options);
-    budgetChart.render();
   }
 
   function renderHealthDonut(categories) {
     const donutEl = document.getElementById('health-donut-chart');
     const emptyEl = document.getElementById('health-donut-empty');
-
-    if (healthDonutChart) {
-      healthDonutChart.destroy();
-      healthDonutChart = null;
-    }
 
     if (categories.length === 0) {
       emptyEl.classList.remove('d-none');
@@ -671,8 +666,12 @@
       },
     };
 
-    healthDonutChart = new ApexCharts(donutEl, options);
-    healthDonutChart.render();
+    if (healthDonutChart) {
+      healthDonutChart.updateOptions(options);
+    } else {
+      healthDonutChart = new ApexCharts(donutEl, options);
+      healthDonutChart.render();
+    }
   }
 
   function fetchBurnRateData(month) {
@@ -692,11 +691,6 @@
       .then(function(data) {
         if (requestVersion !== burnRateRequestVersion) {
           return;
-        }
-
-        if (burnRateChart) {
-          burnRateChart.destroy();
-          burnRateChart = null;
         }
 
         if (data.days.length === 0) {
@@ -735,8 +729,12 @@
           grid: { borderColor: '#e9ecef' },
         };
 
-        burnRateChart = new ApexCharts(chartEl, options);
-        burnRateChart.render();
+        if (burnRateChart) {
+          burnRateChart.updateOptions(options);
+        } else {
+          burnRateChart = new ApexCharts(chartEl, options);
+          burnRateChart.render();
+        }
       })
       .catch(function(err) {
         if (err && err.name === 'AbortError') {
@@ -878,10 +876,6 @@
   function renderGoalsTimeline(timeline) {
     const chartEl = document.getElementById('goals-timeline-chart');
     const emptyEl = document.getElementById('goals-timeline-empty');
-    if (goalsTimelineChart) {
-      goalsTimelineChart.destroy();
-      goalsTimelineChart = null;
-    }
     if (!timeline || timeline.series.length === 0) {
       emptyEl.classList.remove('d-none');
       return;
@@ -919,8 +913,12 @@
       grid: { borderColor: '#e9ecef' },
       plotOptions: { bar: { columnWidth: '60%' } },
     };
-    goalsTimelineChart = new ApexCharts(chartEl, options);
-    goalsTimelineChart.render();
+    if (goalsTimelineChart) {
+      goalsTimelineChart.updateOptions(options);
+    } else {
+      goalsTimelineChart = new ApexCharts(chartEl, options);
+      goalsTimelineChart.render();
+    }
   }
 
   function fetchGoalsData() {
@@ -986,8 +984,6 @@
   function renderProjectionChart(data) {
     var chartEl = document.getElementById('projection-chart');
     var completionEl = document.getElementById('projection-completion');
-    if (projectionChart) { projectionChart.destroy(); projectionChart = null; }
-
     if (data.historical.length === 0) {
       chartEl.innerHTML = '<p class="text-muted text-center py-4">No contributions recorded yet.</p>';
       completionEl.textContent = '';
@@ -1065,8 +1061,12 @@
       annotations: annotations,
     };
 
-    projectionChart = new ApexCharts(chartEl, options);
-    projectionChart.render();
+    if (projectionChart) {
+      projectionChart.updateOptions(options);
+    } else {
+      projectionChart = new ApexCharts(chartEl, options);
+      projectionChart.render();
+    }
 
     if (data.estimated_completion) {
       completionEl.innerHTML = '<i class="bi bi-calendar-check me-1"></i>Estimated completion: <strong>' +
@@ -1110,8 +1110,6 @@
 
   function renderSpendingTrendChart(data) {
     var chartEl = document.getElementById('spending-trend-chart');
-    if (spendingTrendChart) { spendingTrendChart.destroy(); spendingTrendChart = null; }
-
     var labels = data.months.map(fmtMonthLabel);
 
     var options = {
@@ -1143,8 +1141,12 @@
       },
     };
 
-    spendingTrendChart = new ApexCharts(chartEl, options);
-    spendingTrendChart.render();
+    if (spendingTrendChart) {
+      spendingTrendChart.updateOptions(options);
+    } else {
+      spendingTrendChart = new ApexCharts(chartEl, options);
+      spendingTrendChart.render();
+    }
   }
 
   document.addEventListener('DOMContentLoaded', function() {
