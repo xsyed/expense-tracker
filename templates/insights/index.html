@@ -152,7 +152,36 @@
   </div>
 
   <div class="tab-pane fade" id="goals" role="tabpanel" aria-labelledby="goals-tab">
-    <p class="text-muted">Coming soon.</p>
+
+    <!-- Loading -->
+    <div id="goals-loading" class="text-center py-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading…</span>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="goals-empty" class="text-center py-5 d-none">
+      <i class="bi bi-bullseye fs-1 text-muted"></i>
+      <p class="text-muted mt-3">
+        No goals yet. <a href="{% url 'goal_create' %}">Create your first goal</a>.
+      </p>
+    </div>
+
+    <!-- Content -->
+    <div id="goals-content" class="d-none">
+      <div id="goals-cards" class="row g-3 mb-4"></div>
+      <div class="card border-0 shadow-sm mt-2">
+        <div class="card-body">
+          <h6 class="card-title fw-semibold mb-3">Contribution Timeline</h6>
+          <div id="goals-timeline-empty" class="text-center text-muted py-4 d-none">
+            No contributions recorded yet.
+          </div>
+          <div id="goals-timeline-chart"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
   <div class="tab-pane fade" id="recurring" role="tabpanel" aria-labelledby="recurring-tab">
     <p class="text-muted">Coming soon.</p>
@@ -505,6 +534,155 @@
       if (this.value === selectedBudgetMonth) return;
       selectedBudgetMonth = this.value;
       fetchBudgetData(this.value);
+    });
+  });
+
+  // ── Goals Tab ──
+
+  let goalsLoaded = false;
+  let goalsTimelineChart = null;
+
+  const HEALTH_BADGE = {
+    on_track:  { label: 'On Track',  cls: 'bg-success' },
+    ahead:     { label: 'Ahead',     cls: 'bg-success' },
+    completed: { label: 'Completed', cls: 'bg-primary' },
+    behind:    { label: 'Behind',    cls: 'bg-danger'  },
+    over:      { label: 'Over',      cls: 'bg-danger'  },
+  };
+
+  const HEALTH_BAR_COLOR = {
+    on_track:  STATUS_GREEN,
+    ahead:     STATUS_GREEN,
+    completed: STATUS_GREEN,
+    behind:    STATUS_RED,
+    over:      STATUS_RED,
+  };
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function renderGoalCards(goals) {
+    const container = document.getElementById('goals-cards');
+    container.innerHTML = '';
+    goals.forEach(function(g) {
+      const badge    = HEALTH_BADGE[g.health]    || { label: g.health, cls: 'bg-secondary' };
+      const barColor = HEALTH_BAR_COLOR[g.health] || '#6c757d';
+      let deadlineText;
+      if (g.days_remaining === null) {
+        deadlineText = 'No deadline';
+      } else if (g.days_remaining < 0) {
+        deadlineText = 'Overdue';
+      } else {
+        deadlineText = g.days_remaining + ' days left';
+      }
+      const col = document.createElement('div');
+      col.className = 'col-sm-6 col-lg-4';
+      col.innerHTML =
+        '<div class="card border-0 shadow-sm h-100">' +
+          '<div class="card-body">' +
+            '<div class="d-flex justify-content-between align-items-start mb-2">' +
+              '<h6 class="card-title fw-semibold mb-0">' + escapeHtml(g.name) + '</h6>' +
+              '<span class="badge ' + badge.cls + '">' + badge.label + '</span>' +
+            '</div>' +
+            '<div class="progress mb-2" style="height:10px;">' +
+              '<div class="progress-bar" role="progressbar"' +
+                   ' style="width:' + g.pct_complete + '%;background-color:' + barColor + ';"' +
+                   ' aria-valuenow="' + g.pct_complete + '" aria-valuemin="0" aria-valuemax="100"></div>' +
+            '</div>' +
+            '<div class="d-flex justify-content-between small text-muted">' +
+              '<span>' + fmtCurrency(g.progress_amount) + ' / ' + fmtCurrency(g.target_amount) + '</span>' +
+              '<span>' + g.pct_complete + '%</span>' +
+            '</div>' +
+            '<div class="mt-2 small text-muted">' +
+              '<i class="bi bi-calendar3 me-1"></i>' + deadlineText +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      container.appendChild(col);
+    });
+  }
+
+  function renderGoalsTimeline(timeline) {
+    const chartEl = document.getElementById('goals-timeline-chart');
+    const emptyEl = document.getElementById('goals-timeline-empty');
+    if (goalsTimelineChart) {
+      goalsTimelineChart.destroy();
+      goalsTimelineChart = null;
+    }
+    if (!timeline || timeline.series.length === 0) {
+      emptyEl.classList.remove('d-none');
+      return;
+    }
+    emptyEl.classList.add('d-none');
+    const options = {
+      chart: {
+        type: 'bar',
+        height: 320,
+        stacked: true,
+        toolbar: { show: false },
+        fontFamily: 'inherit',
+        animations: { enabled: false },
+      },
+      series: timeline.series,
+      xaxis: {
+        categories: timeline.months,
+        labels: {
+          rotate: -45,
+          hideOverlappingLabels: true,
+          formatter: function(val) {
+            const parts = val.split('-');
+            return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1)
+              .toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+          },
+        },
+      },
+      yaxis: {
+        labels: { formatter: function(val) { return fmtCurrency(val); } },
+      },
+      tooltip: {
+        y: { formatter: function(val) { return fmtCurrency(val); } },
+      },
+      legend: { position: 'top', fontSize: '13px' },
+      grid: { borderColor: '#e9ecef' },
+      plotOptions: { bar: { columnWidth: '60%' } },
+    };
+    goalsTimelineChart = new ApexCharts(chartEl, options);
+    goalsTimelineChart.render();
+  }
+
+  function fetchGoalsData() {
+    document.getElementById('goals-loading').classList.remove('d-none');
+    document.getElementById('goals-empty').classList.add('d-none');
+    document.getElementById('goals-content').classList.add('d-none');
+    fetch('/api/insights/goals-data/')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        document.getElementById('goals-loading').classList.add('d-none');
+        if (data.goals.length === 0) {
+          document.getElementById('goals-empty').classList.remove('d-none');
+          return;
+        }
+        document.getElementById('goals-content').classList.remove('d-none');
+        renderGoalCards(data.goals);
+        renderGoalsTimeline(data.timeline);
+      })
+      .catch(function(err) {
+        console.error('Failed to fetch goals data:', err);
+        document.getElementById('goals-loading').classList.add('d-none');
+      });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('goals-tab').addEventListener('shown.bs.tab', function() {
+      if (!goalsLoaded) {
+        goalsLoaded = true;
+        fetchGoalsData();
+      }
     });
   });
 </script>
