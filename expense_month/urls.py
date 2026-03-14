@@ -37,6 +37,7 @@ from core.views_csv_mapper import (
     csv_mapper_sample_view,
     csv_mapper_view,
 )
+from core.views_forecasting import forecasting_data_view
 from core.views_goals import goal_contribute_view, goal_create_view, goal_delete_view, goal_edit_view, goal_list_view
 from core.views_insights import (
     budget_data_view,
@@ -104,6 +105,7 @@ urlpatterns = [
     path("api/insights/recurring-data/", recurring_data_view, name="recurring_data"),
     path("api/insights/category-trends/", category_trends_data_view, name="category_trends_data"),
     path("api/insights/accounts-overview/", accounts_overview_data_view, name="accounts_overview_data"),
+    path("api/insights/forecasting/", forecasting_data_view, name="forecasting_data"),
     path("insights/", insights_view, name="insights"),
     path("goals/", goal_list_view, name="goal_list"),
     path("goals/create/", goal_create_view, name="goal_create"),

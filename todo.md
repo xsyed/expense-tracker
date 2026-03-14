@@ -14,7 +14,7 @@
 | 8 | Recurring Expenses Tab | Done |
 | 9 | Category Trends Tab | Done |
 | 10 | Accounts Overview Tab | Done |
-| 11 | Forecasting Tab | Not Started |
+| 11 | Forecasting Tab | Done |
 
 Phase details: `tasks/phases/phase-XX-*.md`
 

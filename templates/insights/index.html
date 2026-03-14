@@ -392,7 +392,76 @@
 
   </div>
   <div class="tab-pane fade" id="forecasting" role="tabpanel" aria-labelledby="forecasting-tab">
-    <p class="text-muted">Coming soon.</p>
+
+    <!-- Loading -->
+    <div id="forecasting-loading" class="text-center py-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading…</span>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="forecasting-empty" class="text-center py-5 d-none">
+      <i class="bi bi-lightning fs-1 text-muted"></i>
+      <p class="text-muted mt-3">
+        No transaction history yet.<br>
+        Add some expense months to see spending predictions.
+      </p>
+    </div>
+
+    <!-- Content -->
+    <div id="forecasting-content" class="d-none">
+
+      <!-- Prediction Card -->
+      <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h6 class="card-title fw-semibold mb-3">
+                <i class="bi bi-graph-up-arrow me-1"></i>Next Month Prediction
+              </h6>
+              <div class="d-flex align-items-baseline mb-2">
+                <span class="fw-bold fs-2" id="forecast-predicted">—</span>
+                <span class="ms-3" id="forecast-confidence"></span>
+              </div>
+              <div id="forecast-delta" class="mt-2"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Category Forecast Table -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+          <h6 class="card-title fw-semibold mb-3">Category Forecast</h6>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th class="text-end">Predicted</th>
+                  <th class="text-end">3M Avg</th>
+                  <th class="text-end">6M Avg</th>
+                  <th class="text-center">Trend</th>
+                </tr>
+              </thead>
+              <tbody id="forecast-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Forecast vs Actual -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <h6 class="card-title fw-semibold mb-3">Forecast vs Actual</h6>
+          <div id="forecast-accuracy-empty" class="text-center text-muted py-4 d-none"></div>
+          <div id="forecast-accuracy-chart"></div>
+        </div>
+      </div>
+
+    </div>
+
   </div>
 </div>
 {% endblock %}
@@ -1467,6 +1536,144 @@
       btn.classList.add('active');
       accountsLoaded = true;
       fetchAccountsData(months);
+    });
+  });
+
+  // ── Forecasting Tab ──
+
+  let forecastingLoaded = false;
+  let forecastAccuracyChart = null;
+
+  const CONFIDENCE_BADGE = {
+    high:   { label: 'High',   cls: 'bg-success' },
+    medium: { label: 'Medium', cls: 'bg-warning text-dark' },
+    low:    { label: 'Low',    cls: 'bg-danger' },
+  };
+
+  function renderForecastPrediction(pred) {
+    document.getElementById('forecast-predicted').textContent = fmtCurrency(pred.predicted_total);
+
+    var badge = CONFIDENCE_BADGE[pred.confidence] || { label: pred.confidence, cls: 'bg-secondary' };
+    document.getElementById('forecast-confidence').innerHTML =
+      '<span class="badge fs-6 ' + badge.cls + '">' + badge.label + ' confidence</span>';
+
+    var deltaEl = document.getElementById('forecast-delta');
+    if (pred.last_month_total === 0) {
+      deltaEl.innerHTML = '<span class="text-muted small">No previous month data for comparison.</span>';
+      return;
+    }
+    var sign = pred.delta_amount >= 0 ? '+' : '-';
+    var color = pred.delta_amount > 0 ? STATUS_RED : (pred.delta_amount < 0 ? STATUS_GREEN : '#6c757d');
+    var pctSign = pred.delta_pct >= 0 ? '+' : '';
+    deltaEl.innerHTML = '<span style="color:' + color + ';font-weight:600;">' +
+      sign + fmtCurrency(Math.abs(pred.delta_amount)) +
+      ' / ' + pctSign + pred.delta_pct.toFixed(1) + '% vs last month</span>';
+  }
+
+  function renderForecastTable(categories) {
+    document.getElementById('forecast-table-body').innerHTML = categories.map(function(c) {
+      var arrow = TREND_ARROW[c.trend] || '\u2192';
+      var color = TREND_COLOR[c.trend] || '#6c757d';
+      return '<tr>' +
+        '<td>' + escapeHtml(c.name) + '</td>' +
+        '<td class="text-end">' + fmtCurrency(c.predicted) + '</td>' +
+        '<td class="text-end">' + fmtCurrency(c.avg_3m) + '</td>' +
+        '<td class="text-end">' + fmtCurrency(c.avg_6m) + '</td>' +
+        '<td class="text-center"><span style="color:' + color + ';font-weight:bold;">' + arrow + '</span></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function renderForecastAccuracy(accuracy) {
+    var chartEl = document.getElementById('forecast-accuracy-chart');
+    var emptyEl = document.getElementById('forecast-accuracy-empty');
+
+    if (forecastAccuracyChart) {
+      forecastAccuracyChart.destroy();
+      forecastAccuracyChart = null;
+    }
+
+    if (!accuracy.has_data) {
+      emptyEl.textContent = accuracy.message;
+      emptyEl.classList.remove('d-none');
+      return;
+    }
+    emptyEl.classList.add('d-none');
+
+    var months = accuracy.entries.map(function(e) { return fmtMonthLabel(e.month); });
+    var predicted = accuracy.entries.map(function(e) { return e.predicted; });
+    var actual = accuracy.entries.map(function(e) { return e.actual; });
+
+    var options = {
+      chart: {
+        type: 'bar',
+        height: 350,
+        toolbar: { show: false },
+        fontFamily: 'inherit',
+        animations: { enabled: false },
+      },
+      series: [
+        { name: 'Predicted', data: predicted },
+        { name: 'Actual', data: actual },
+      ],
+      xaxis: { categories: months, labels: { rotate: -45, hideOverlappingLabels: true } },
+      yaxis: {
+        labels: { formatter: function(val) { return fmtCurrency(val); } },
+      },
+      colors: ['#0d6efd', STATUS_GREEN],
+      plotOptions: { bar: { columnWidth: '60%' } },
+      dataLabels: { enabled: false },
+      tooltip: {
+        custom: function(opts) {
+          var idx = opts.dataPointIndex;
+          var entry = accuracy.entries[idx];
+          return '<div style="padding:8px 12px;font-size:13px;">' +
+            '<div style="margin-bottom:4px;"><strong>' + escapeHtml(months[idx]) + '</strong></div>' +
+            '<div><span style="color:#0d6efd;">\u25CF</span> Predicted: ' + fmtCurrency(entry.predicted) + '</div>' +
+            '<div><span style="color:' + STATUS_GREEN + ';">\u25CF</span> Actual: ' + fmtCurrency(entry.actual) + '</div>' +
+            '<div style="margin-top:4px;border-top:1px solid #eee;padding-top:4px;">' +
+            'Accuracy: <strong>' + entry.accuracy_pct + '%</strong></div>' +
+            '</div>';
+        },
+      },
+      legend: { position: 'top', fontSize: '13px' },
+      grid: { borderColor: '#e9ecef' },
+    };
+
+    forecastAccuracyChart = new ApexCharts(chartEl, options);
+    forecastAccuracyChart.render();
+  }
+
+  function fetchForecastingData() {
+    document.getElementById('forecasting-loading').classList.remove('d-none');
+    document.getElementById('forecasting-empty').classList.add('d-none');
+    document.getElementById('forecasting-content').classList.add('d-none');
+
+    fetch('/api/insights/forecasting/')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        document.getElementById('forecasting-loading').classList.add('d-none');
+        if (!data.prediction) {
+          document.getElementById('forecasting-empty').classList.remove('d-none');
+          return;
+        }
+        document.getElementById('forecasting-content').classList.remove('d-none');
+        renderForecastPrediction(data.prediction);
+        renderForecastTable(data.categories);
+        renderForecastAccuracy(data.accuracy);
+      })
+      .catch(function(err) {
+        console.error('Failed to fetch forecasting data:', err);
+        document.getElementById('forecasting-loading').classList.add('d-none');
+      });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('forecasting-tab').addEventListener('shown.bs.tab', function() {
+      if (!forecastingLoaded) {
+        forecastingLoaded = true;
+        fetchForecastingData();
+      }
     });
   });
 </script>
