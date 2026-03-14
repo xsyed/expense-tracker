@@ -614,12 +614,18 @@
     }
     emptyEl.classList.add('d-none');
 
-    var onTrack = 0, warning = 0, overBudget = 0;
+    var onTrackCats = [], warningCats = [], overBudgetCats = [];
     categories.forEach(function(c) {
-      if (c.pct_used > 100) overBudget++;
-      else if (c.pct_used >= 80) warning++;
-      else onTrack++;
+      if (c.pct_used > 100) overBudgetCats.push(c);
+      else if (c.pct_used >= 80) warningCats.push(c);
+      else onTrackCats.push(c);
     });
+
+    var onTrack = onTrackCats.length, warning = warningCats.length, overBudget = overBudgetCats.length;
+    var total = onTrack + warning + overBudget;
+    var bucketCats   = [onTrackCats, warningCats, overBudgetCats];
+    var bucketColors = [STATUS_GREEN, STATUS_YELLOW, STATUS_RED];
+    var bucketLabels = ['On Track', 'Warning', 'Over Budget'];
 
     var options = {
       chart: {
@@ -636,11 +642,29 @@
         return [onTrack, warning, overBudget][opts.seriesIndex];
       }},
       tooltip: {
-        y: { formatter: function(val) {
-          var total = onTrack + warning + overBudget;
-          var pct = total > 0 ? (val / total * 100).toFixed(1) : '0.0';
-          return val + ' categories (' + pct + '%)';
-        }},
+        custom: function(opts) {
+          var idx   = opts.seriesIndex;
+          var val   = opts.series[idx];
+          var pct   = total > 0 ? (val / total * 100).toFixed(1) : '0.0';
+          var color = bucketColors[idx];
+
+          var header = '<div style="padding:6px 10px;border-bottom:1px solid #e9ecef;font-weight:600;">' +
+            '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + color + ';margin-right:5px;vertical-align:middle;"></span>' +
+            bucketLabels[idx] + ': ' + val + ' (' + pct + '%)</div>';
+
+          if (idx === 0 || bucketCats[idx].length === 0) {
+            return '<div style="font-size:13px;">' + header + '</div>';
+          }
+
+          var rows = bucketCats[idx].map(function(c) {
+            return '<div style="padding:3px 10px;display:flex;justify-content:space-between;gap:14px;">' +
+              '<span>' + c.name + '</span>' +
+              '<span style="color:' + color + ';font-weight:500;">' + c.pct_used.toFixed(1) + '%</span>' +
+              '</div>';
+          }).join('');
+
+          return '<div style="font-size:13px;min-width:180px;">' + header + rows + '</div>';
+        },
       },
       plotOptions: {
         pie: {
