@@ -6,7 +6,7 @@ import re
 from collections import Counter, defaultdict
 from decimal import Decimal
 from statistics import median
-from typing import Any
+from typing import Any, cast
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
@@ -14,6 +14,7 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 
 from .models import CategoryBudget, ExpenseMonth, Goal, GoalContribution, Transaction
+from .models import User as UserModel
 
 # Max months to project forward for savings goals
 _MAX_PROJECTION_MONTHS = 120
@@ -26,7 +27,8 @@ def insights_view(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def budget_data_view(request: HttpRequest) -> JsonResponse:
-    user = request.user
+    user = cast(UserModel, request.user)
+    total_budget = float(user.monthly_budget) if user.monthly_budget is not None else None
 
     expense_months = ExpenseMonth.objects.filter(user=user).values_list("month", flat=True).order_by("-month")
     available_months = [m.strftime("%Y-%m") for m in expense_months]
@@ -38,6 +40,7 @@ def budget_data_view(request: HttpRequest) -> JsonResponse:
                 "selected_month": "",
                 "categories": [],
                 "totals": {"budgeted": 0.0, "spent": 0.0, "remaining": 0.0, "pct_used": 0.0},
+                "total_budget": total_budget,
             }
         )
 
@@ -63,6 +66,7 @@ def budget_data_view(request: HttpRequest) -> JsonResponse:
                 "selected_month": month_param,
                 "categories": [],
                 "totals": {"budgeted": 0.0, "spent": 0.0, "remaining": 0.0, "pct_used": 0.0},
+                "total_budget": total_budget,
             }
         )
 
@@ -115,6 +119,7 @@ def budget_data_view(request: HttpRequest) -> JsonResponse:
                 "remaining": round(total_remaining, 2),
                 "pct_used": round(overall_pct, 1),
             },
+            "total_budget": total_budget,
         }
     )
 
@@ -132,9 +137,7 @@ def _savings_health_from_pace(
     pace_needed = (target_amount - progress) / months_remaining
     if avg_monthly >= pace_needed * Decimal("1.2"):
         return "ahead"
-    if avg_monthly >= pace_needed:
-        return "on_track"
-    return "behind"
+    return "on_track" if avg_monthly >= pace_needed else "behind"
 
 
 def _compute_goal_health(
@@ -152,9 +155,7 @@ def _compute_goal_health(
     return _savings_health_from_pace(goal.target_amount, progress, today, months_remaining, contributions)
 
 
-def _build_contribution_timeline(
-    savings_goals: list[tuple[Goal, list[GoalContribution]]],
-) -> dict[str, Any]:
+def _build_contribution_timeline(savings_goals: list[tuple[Goal, list[GoalContribution]]]) -> dict[str, Any]:
     if not savings_goals:
         return {"months": [], "series": []}
     all_months: set[str] = set()

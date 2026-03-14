@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+from decimal import Decimal
 from typing import Any, cast
 
 from django import forms
@@ -225,13 +226,23 @@ class CSVUploadForm(forms.Form):
 
 
 class CategoryBudgetForm(forms.Form):
-    """Dynamic form with one DecimalField per user category, keyed by category pk."""
+    """Dynamic form: total monthly budget + one DecimalField per user category."""
+
+    total_budget = forms.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        min_value=0,
+        label="Total Monthly Budget",
+        widget=forms.NumberInput(attrs={"class": "form-control", "placeholder": "0.00", "step": "0.01"}),
+    )
 
     def __init__(self, *args: Any, user: UserModel | None = None, **kwargs: Any) -> None:
         self.user = user
         super().__init__(*args, **kwargs)
         if user is None:
             return
+        self.fields["total_budget"].initial = user.monthly_budget
         categories = Category.objects.filter(user=user)
         existing = {cb.category_id: cb.amount for cb in CategoryBudget.objects.filter(user=user)}
         for cat in categories:
@@ -241,14 +252,35 @@ class CategoryBudgetForm(forms.Form):
                 required=False,
                 min_value=0,
                 initial=existing.get(cat.pk),
-                widget=forms.NumberInput(attrs={"class": "form-control", "placeholder": "0.00"}),
+                widget=forms.NumberInput(
+                    attrs={"class": "form-control form-control-sm", "placeholder": "0.00", "step": "any"}
+                ),
                 label=cat.name,
             )
+
+    def clean(self) -> dict[str, Any]:
+        cleaned_data: dict[str, Any] = super().clean() or {}
+        total_budget: Decimal | None = cleaned_data.get("total_budget")
+        if total_budget is not None:
+            total_allocated = Decimal(0)
+            for k, v in cleaned_data.items():
+                if k.startswith("budget_") and v is not None:
+                    total_allocated += v
+            if total_allocated > total_budget:
+                raise forms.ValidationError(
+                    f"Total allocated (${total_allocated:.2f}) exceeds the monthly budget (${total_budget:.2f})."
+                )
+        return cleaned_data
 
     def save(self) -> None:
         if self.user is None:
             raise ValueError("save() called without a user")
+        total_budget: Decimal | None = self.cleaned_data.get("total_budget")
+        self.user.monthly_budget = total_budget
+        self.user.save(update_fields=["monthly_budget"])
         for field_name, value in self.cleaned_data.items():
+            if not field_name.startswith("budget_"):
+                continue
             cat_pk = int(field_name.removeprefix("budget_"))
             if value:
                 CategoryBudget.objects.update_or_create(

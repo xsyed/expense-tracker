@@ -7,40 +7,193 @@
   <h2 class="mb-0"><i class="bi bi-piggy-bank me-2"></i>Budget Setup</h2>
 </div>
 
-<div class="card">
-  <div class="card-header fw-semibold">Monthly Budget per Category</div>
-  <div class="card-body">
-    {% if form.fields %}
-    <form method="post">
-      {% csrf_token %}
-      <table class="table table-hover align-middle mb-3">
-        <thead>
-          <tr>
-            <th>Category</th>
-            <th style="width: 220px;">Budget Amount ($)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for field in form %}
-          <tr>
-            <td><i class="bi bi-tag me-2 text-muted"></i>{{ field.label }}</td>
-            <td>
-              {{ field }}
-              {% if field.errors %}
+{% if form.fields|length > 1 %}
+<form method="post" id="budget-form">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="alert alert-danger">
+    {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Total budget header -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="row align-items-center g-3">
+        <div class="col-auto">
+          <label for="{{ form.total_budget.id_for_label }}" class="form-label fw-semibold mb-0">
+            Total Monthly Budget
+          </label>
+        </div>
+        <div class="col-auto" style="width: 190px;">
+          <div class="input-group">
+            <span class="input-group-text">$</span>
+            {{ form.total_budget }}
+          </div>
+          {% if form.total_budget.errors %}
+          <div class="text-danger small mt-1">{{ form.total_budget.errors.0 }}</div>
+          {% endif %}
+        </div>
+        <div class="col-auto">
+          <span class="text-muted">Remaining:</span>
+          <span id="remaining-display" class="fw-bold ms-1 text-muted">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Per-category sliders -->
+  <div class="card">
+    <div class="card-header fw-semibold">Per-Category Allocation</div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Category</th>
+              <th>Allocation</th>
+              <th style="width: 130px;">Amount ($)</th>
+              <th style="width: 75px;" class="text-center">% of Budget</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for field in form %}{% if field.html_name != 'total_budget' %}
+            <tr class="category-row" data-field="{{ field.html_name }}">
+              <td><i class="bi bi-tag me-2 text-muted"></i>{{ field.label }}</td>
+              <td>
+                <input type="range" class="form-range category-slider"
+                       id="slider_{{ field.html_name }}"
+                       min="0" max="0" step="10"
+                       data-field="{{ field.html_name }}">
+              </td>
+              <td>
+                {{ field }}
+                {% if field.errors %}
                 <div class="text-danger small mt-1">{{ field.errors.0 }}</div>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                <span class="badge bg-secondary pct-badge" id="pct_{{ field.html_name }}">—</span>
+              </td>
+            </tr>
+            {% endif %}{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-footer">
       <button type="submit" class="btn btn-primary">
         <i class="bi bi-check-lg me-1"></i>Save Budgets
       </button>
-    </form>
-    {% else %}
+    </div>
+  </div>
+</form>
+
+<script>
+(function () {
+  const totalInput = document.getElementById('{{ form.total_budget.id_for_label }}');
+  const remainingEl = document.getElementById('remaining-display');
+
+  const rows = [];
+  document.querySelectorAll('.category-row').forEach(function (row) {
+    const fieldName = row.dataset.field;
+    rows.push({
+      slider: document.getElementById('slider_' + fieldName),
+      numInput: document.getElementById('id_' + fieldName),
+      pctBadge: document.getElementById('pct_' + fieldName),
+    });
+  });
+
+  function getTotal() {
+    return parseFloat(totalInput.value) || 0;
+  }
+
+  function getAllocated() {
+    return rows.reduce(function (sum, r) {
+      return sum + (parseFloat(r.numInput.value) || 0);
+    }, 0);
+  }
+
+  function updateRemaining() {
+    const total = getTotal();
+    const remaining = total - getAllocated();
+    if (total === 0) {
+      remainingEl.textContent = '—';
+      remainingEl.className = 'fw-bold ms-1 text-muted';
+    } else if (remaining < -0.005) {
+      remainingEl.textContent = '-$' + Math.abs(remaining).toFixed(2);
+      remainingEl.className = 'fw-bold ms-1 text-danger';
+    } else if (remaining < 0.005) {
+      remainingEl.textContent = '$0.00';
+      remainingEl.className = 'fw-bold ms-1 text-secondary';
+    } else {
+      remainingEl.textContent = '$' + remaining.toFixed(2);
+      remainingEl.className = 'fw-bold ms-1 text-success';
+    }
+  }
+
+  function updatePercentages() {
+    const total = getTotal();
+    rows.forEach(function (r) {
+      const val = parseFloat(r.numInput.value) || 0;
+      if (total > 0 && val > 0) {
+        r.pctBadge.textContent = (val / total * 100).toFixed(1) + '%';
+        r.pctBadge.className = 'badge bg-primary pct-badge';
+      } else {
+        r.pctBadge.textContent = '—';
+        r.pctBadge.className = 'badge bg-secondary pct-badge';
+      }
+    });
+  }
+
+  function updateSliderMaxes() {
+    const total = getTotal();
+    const allocated = getAllocated();
+    const remaining = total - allocated;
+    rows.forEach(function (r) {
+      const current = parseFloat(r.numInput.value) || 0;
+      r.slider.max = Math.max(current, current + Math.max(0, remaining));
+      r.slider.value = current;
+    });
+  }
+
+  function onSliderChange(slider, numInput) {
+    numInput.value = parseFloat(slider.value).toFixed(2);
+    updateRemaining();
+    updatePercentages();
+    updateSliderMaxes();
+  }
+
+  function onNumInputChange(numInput, slider) {
+    slider.value = parseFloat(numInput.value) || 0;
+    updateRemaining();
+    updatePercentages();
+    updateSliderMaxes();
+  }
+
+  rows.forEach(function (r) {
+    r.slider.addEventListener('input', function () { onSliderChange(r.slider, r.numInput); });
+    r.numInput.addEventListener('input', function () { onNumInputChange(r.numInput, r.slider); });
+  });
+
+  totalInput.addEventListener('input', function () {
+    updateRemaining();
+    updatePercentages();
+    updateSliderMaxes();
+  });
+
+  updateRemaining();
+  updatePercentages();
+  updateSliderMaxes();
+}());
+</script>
+
+{% else %}
+<div class="card">
+  <div class="card-body">
     <p class="text-muted mb-0">No categories found. <a href="{% url 'category_list' %}">Create some categories</a> first.</p>
-    {% endif %}
   </div>
 </div>
+{% endif %}
 {% endblock %}
