@@ -13,7 +13,7 @@
 | 7 | Goals Tab — Advanced Widgets | Done |
 | 8 | Recurring Expenses Tab | Done |
 | 9 | Category Trends Tab | Done |
-| 10 | Accounts Overview Tab | Not Started |
+| 10 | Accounts Overview Tab | Done |
 | 11 | Forecasting Tab | Not Started |
 
 Phase details: `tasks/phases/phase-XX-*.md`

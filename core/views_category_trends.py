@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import datetime
 from collections import defaultdict
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
 from django.http import HttpRequest, JsonResponse
 
+from .date_utils import parse_month_range
 from .models import Transaction
 
 _STABLE_THRESHOLD = 5.0
@@ -29,26 +29,7 @@ def _category_trend(amounts: list[float]) -> tuple[str, float | None, float]:
 @login_required
 def category_trends_data_view(request: HttpRequest) -> JsonResponse:
     user = request.user
-    try:
-        num_months = int(request.GET.get("months", "6"))
-    except (ValueError, TypeError):
-        num_months = 6
-    if num_months not in (3, 6, 12):
-        num_months = 6
-
-    today = datetime.date.today()
-    month_keys: list[str] = []
-    month_starts: list[datetime.date] = []
-    y, m = today.year, today.month
-    for _ in range(num_months):
-        month_keys.append(f"{y:04d}-{m:02d}")
-        month_starts.append(datetime.date(y, m, 1))
-        m -= 1
-        if m == 0:
-            m = 12
-            y -= 1
-    month_keys.reverse()
-    month_starts.reverse()
+    month_keys, month_starts = parse_month_range(request.GET.get("months"))
 
     rows = (
         Transaction.objects.filter(
