@@ -18,11 +18,13 @@ def _build_transactions(
     rows: list[dict[str, Any]],
     expense_month: ExpenseMonth,
     filename: str,
-    rules: dict[str, int],
+    rules: dict[str, tuple[int, str]],
 ) -> list[Transaction]:
     result = []
     for row in rows:
-        cat_id = match_merchant(row["description"], rules)
+        match = match_merchant(row["description"], rules)
+        cat_id = match[0] if match else None
+        tx_type = match[1] if match else "expense"
         result.append(
             Transaction(
                 expense_month=expense_month,
@@ -30,7 +32,7 @@ def _build_transactions(
                 description=row["description"],
                 amount=row["amount"],
                 source_file=row.get("source_file", filename),
-                transaction_type="expense",
+                transaction_type=tx_type,
                 category_id=cat_id,
                 auto_categorized=cat_id is not None,
             )

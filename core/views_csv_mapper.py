@@ -133,14 +133,16 @@ def _import_single_file(rows: list[dict[str, Any]], user: Any, account: Account 
         )
         transactions_to_create = []
         for row in group_rows:
-            cat_id = match_merchant(row["description"], rules)
+            match = match_merchant(row["description"], rules)
+            cat_id = match[0] if match else None
+            tx_type = match[1] if match else "expense"
             transactions_to_create.append(
                 Transaction(
                     expense_month=expense_month,
                     date=row["date"],
                     description=row["description"],
                     amount=row["amount"],
-                    transaction_type="expense",
+                    transaction_type=tx_type,
                     category_id=cat_id,
                     auto_categorized=cat_id is not None,
                     account=account,

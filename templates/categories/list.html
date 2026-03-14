@@ -20,6 +20,9 @@
         {% endif %}
       </div>
       <div class="col-auto">
+        {{ form.category_type }}
+      </div>
+      <div class="col-auto">
         <button type="submit" class="btn btn-primary">
           <i class="bi bi-plus-lg me-1"></i>Add
         </button>
@@ -28,12 +31,12 @@
   </div>
 </div>
 
-<!-- Category List -->
-<div class="card">
-  <div class="card-header fw-semibold">Your Categories ({{ categories.count }})</div>
-  {% if categories %}
+<!-- Expense Categories -->
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Expense Categories ({{ expense_categories.count }})</div>
+  {% if expense_categories %}
   <ul class="list-group list-group-flush">
-    {% for category in categories %}
+    {% for category in expense_categories %}
     <li class="list-group-item d-flex justify-content-between align-items-center">
       <span><i class="bi bi-tag me-2 text-muted"></i>{{ category.name }}</span>
       <div>
@@ -48,7 +51,31 @@
     {% endfor %}
   </ul>
   {% else %}
-  <div class="card-body text-muted">No categories yet. Add one above.</div>
+  <div class="card-body text-muted">No expense categories yet.</div>
+  {% endif %}
+</div>
+
+<!-- Income Categories -->
+<div class="card">
+  <div class="card-header fw-semibold">Income Categories ({{ income_categories.count }})</div>
+  {% if income_categories %}
+  <ul class="list-group list-group-flush">
+    {% for category in income_categories %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-tag me-2 text-muted"></i>{{ category.name }}</span>
+      <div>
+        <a href="{% url 'category_edit' category.pk %}" class="btn btn-sm btn-outline-secondary me-1">
+          <i class="bi bi-pencil"></i> Edit
+        </a>
+        <a href="{% url 'category_delete' category.pk %}" class="btn btn-sm btn-outline-danger">
+          <i class="bi bi-trash"></i> Delete
+        </a>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="card-body text-muted">No income categories yet.</div>
   {% endif %}
 </div>
 {% endblock %}

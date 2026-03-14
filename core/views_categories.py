@@ -12,6 +12,8 @@ from .models import Category
 @login_required
 def category_list_view(request: HttpRequest) -> HttpResponse:
     categories = Category.objects.filter(user=request.user)
+    expense_categories = categories.filter(category_type="expense")
+    income_categories = categories.filter(category_type="income")
     if request.method == "POST":
         form = CategoryForm(request.POST, user=request.user)
         if form.is_valid():
@@ -22,7 +24,16 @@ def category_list_view(request: HttpRequest) -> HttpResponse:
             return redirect("category_list")
     else:
         form = CategoryForm(user=request.user)
-    return render(request, "categories/list.html", {"categories": categories, "form": form})
+    return render(
+        request,
+        "categories/list.html",
+        {
+            "categories": categories,
+            "expense_categories": expense_categories,
+            "income_categories": income_categories,
+            "form": form,
+        },
+    )
 
 
 @login_required

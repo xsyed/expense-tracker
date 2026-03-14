@@ -39,9 +39,14 @@ def normalize_merchant(description: str) -> str:
     return text
 
 
-def load_merchant_rules(user_id: int) -> dict[str, int]:
-    return dict(MerchantRule.objects.filter(user_id=user_id).values_list("normalized_name", "category_id"))
+def load_merchant_rules(user_id: int) -> dict[str, tuple[int, str]]:
+    return {
+        name: (cat_id, cat_type)
+        for name, cat_id, cat_type in MerchantRule.objects.filter(user_id=user_id).values_list(
+            "normalized_name", "category_id", "category__category_type"
+        )
+    }
 
 
-def match_merchant(description: str, rules: dict[str, int]) -> int | None:
+def match_merchant(description: str, rules: dict[str, tuple[int, str]]) -> tuple[int, str] | None:
     return rules.get(normalize_merchant(description))

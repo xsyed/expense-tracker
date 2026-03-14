@@ -89,12 +89,14 @@ def transaction_update_view(request: HttpRequest, month_id: int, tx_id: int) -> 
             transaction.category = None
         else:
             try:
-                transaction.category = Category.objects.get(id=value, user=request.user)
+                category = Category.objects.get(id=value, user=request.user)
             except Category.DoesNotExist:
                 return JsonResponse(
                     {"success": False, "error": "Invalid category.", "field": "category_id"},
                     status=400,
                 )
+            transaction.category = category
+            transaction.transaction_type = category.category_type
             normalized = normalize_merchant(transaction.description)
             MerchantRule.objects.update_or_create(
                 user=request.user,

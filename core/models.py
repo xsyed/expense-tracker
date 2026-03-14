@@ -63,12 +63,15 @@ DEFAULT_CATEGORIES = [
 
 
 class Category(models.Model):
+    CATEGORY_TYPES = [("expense", "Expense"), ("income", "Income")]
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="categories",
     )
     name = models.CharField(max_length=100)
+    category_type = models.CharField(max_length=7, choices=CATEGORY_TYPES, default="expense")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
