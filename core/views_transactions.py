@@ -9,7 +9,8 @@ from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
 
-from .models import Account, Category, ExpenseMonth, Transaction, UserGridPreference
+from .merchant_utils import normalize_merchant
+from .models import Account, Category, ExpenseMonth, MerchantRule, Transaction, UserGridPreference
 from .views_months import _month_summary
 
 
@@ -92,6 +93,13 @@ def transaction_update_view(request: HttpRequest, month_id: int, tx_id: int) -> 
                     {"success": False, "error": "Invalid category.", "field": "category_id"},
                     status=400,
                 )
+            normalized = normalize_merchant(transaction.description)
+            MerchantRule.objects.update_or_create(
+                user=request.user,
+                normalized_name=normalized,
+                defaults={"category_id": value},
+            )
+        transaction.auto_categorized = False
 
     else:
         return JsonResponse({"success": False, "error": f"Unknown field: {field}."}, status=400)
@@ -107,6 +115,7 @@ def transaction_update_view(request: HttpRequest, month_id: int, tx_id: int) -> 
         "transaction_type": transaction.transaction_type,
         "category_id": str(transaction.category_id) if transaction.category_id else "",
         "category_name": transaction.category.name if transaction.category else "",
+        "auto_categorized": transaction.auto_categorized,
     }
     return JsonResponse({"success": True, "transaction": tx_data, "summary": _month_summary(month)})
 

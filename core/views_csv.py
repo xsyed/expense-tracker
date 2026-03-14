@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import calendar
 from datetime import date
+from typing import Any
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -9,7 +10,32 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 
 from .csv_parser import CSVParser
+from .merchant_utils import load_merchant_rules, match_merchant
 from .models import CSVUpload, ExpenseMonth, Transaction
+
+
+def _build_transactions(
+    rows: list[dict[str, Any]],
+    expense_month: ExpenseMonth,
+    filename: str,
+    rules: dict[str, int],
+) -> list[Transaction]:
+    result = []
+    for row in rows:
+        cat_id = match_merchant(row["description"], rules)
+        result.append(
+            Transaction(
+                expense_month=expense_month,
+                date=row["date"],
+                description=row["description"],
+                amount=row["amount"],
+                source_file=row.get("source_file", filename),
+                transaction_type="expense",
+                category_id=cat_id,
+                auto_categorized=cat_id is not None,
+            )
+        )
+    return result
 
 
 @login_required
@@ -25,6 +51,7 @@ def csv_upload_view(request: HttpRequest, pk: int) -> HttpResponse:
         return redirect("month_detail", pk=pk)
 
     total_imported = 0
+    rules = load_merchant_rules(request.user.pk)
     start_date: date = expense_month.month
     last_day = calendar.monthrange(start_date.year, start_date.month)[1]
     end_date = date(start_date.year, start_date.month, last_day)
@@ -45,19 +72,7 @@ def csv_upload_view(request: HttpRequest, pk: int) -> HttpResponse:
         excluded_rows = [row for row in rows if row not in valid_rows]
 
         if valid_rows:
-            Transaction.objects.bulk_create(
-                [
-                    Transaction(
-                        expense_month=expense_month,
-                        date=row["date"],
-                        description=row["description"],
-                        amount=row["amount"],
-                        source_file=row.get("source_file", filename),
-                        transaction_type="expense",
-                    )
-                    for row in valid_rows
-                ]
-            )
+            Transaction.objects.bulk_create(_build_transactions(valid_rows, expense_month, filename, rules))
             CSVUpload.objects.create(
                 expense_month=expense_month,
                 filename=filename,

@@ -12,6 +12,7 @@ from .models import (
     ExpenseMonth,
     Goal,
     GoalContribution,
+    MerchantRule,
     Transaction,
     User,
     UserGridPreference,
@@ -67,6 +68,13 @@ class CategoryBudgetAdmin(admin.ModelAdmin[CategoryBudget]):
     list_display = ("user", "category", "amount")
     list_filter = ("user",)
     search_fields = ("user__email", "category__name")
+
+
+@admin.register(MerchantRule)
+class MerchantRuleAdmin(admin.ModelAdmin[MerchantRule]):
+    list_display = ("user", "normalized_name", "category", "last_used")
+    list_filter = ("user",)
+    search_fields = ("normalized_name", "user__email", "category__name")
 
 
 @admin.register(Goal)

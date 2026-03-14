@@ -70,6 +70,7 @@ def month_detail_view(request: HttpRequest, pk: int) -> HttpResponse:
             "transaction_type": tx.transaction_type,
             "category_id": str(tx.category_id) if tx.category_id else "",
             "category_name": tx.category.name if tx.category else "",
+            "auto_categorized": tx.auto_categorized,
         }
         for tx in expense_month.transactions.select_related("category", "account").all()
     ]

@@ -13,6 +13,7 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 
 from .csv_parser import CSVParser
+from .merchant_utils import load_merchant_rules, match_merchant
 from .models import Account, ExpenseMonth, Transaction
 
 _parser = CSVParser()
@@ -105,6 +106,7 @@ def _resolve_account(post: Any, user: Any, prefix: str = "") -> Account | None:
 
 def _import_single_file(rows: list[dict[str, Any]], user: Any, account: Account | None) -> ImportResult:
     today = date.today()
+    rules = load_merchant_rules(user.pk)
     skipped_errors = 0
     skipped_future = 0
     groups: dict[tuple[int, int], list[dict[str, Any]]] = {}
@@ -129,20 +131,22 @@ def _import_single_file(rows: list[dict[str, Any]], user: Any, account: Account 
             month=month_date,
             defaults={"label": month_date.strftime("%b %y")},
         )
-        Transaction.objects.bulk_create(
-            [
+        transactions_to_create = []
+        for row in group_rows:
+            cat_id = match_merchant(row["description"], rules)
+            transactions_to_create.append(
                 Transaction(
                     expense_month=expense_month,
                     date=row["date"],
                     description=row["description"],
                     amount=row["amount"],
                     transaction_type="expense",
-                    category=None,
+                    category_id=cat_id,
+                    auto_categorized=cat_id is not None,
                     account=account,
                 )
-                for row in group_rows
-            ]
-        )
+            )
+        Transaction.objects.bulk_create(transactions_to_create)
         count = len(group_rows)
         total_imported += count
         months.append({"label": expense_month.label, "pk": expense_month.pk, "count": count, "is_new": created})

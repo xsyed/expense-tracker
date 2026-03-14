@@ -176,6 +176,7 @@ class Transaction(models.Model):
         related_name="transactions",
     )
     source_file = models.CharField(max_length=200, blank=True)
+    auto_categorized = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -266,6 +267,27 @@ class Goal(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class MerchantRule(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="merchant_rules",
+    )
+    normalized_name = models.CharField(max_length=500)
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.CASCADE,
+        related_name="merchant_rules",
+    )
+    last_used = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("user", "normalized_name")
+
+    def __str__(self) -> str:
+        return f"{self.normalized_name} → {self.category.name}"
 
 
 class GoalContribution(models.Model):

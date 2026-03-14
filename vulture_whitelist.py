@@ -14,6 +14,7 @@ from core.models import (
     CategoryBudget,
     CSVUpload,
     ExpenseMonth,
+    MerchantRule,
     Transaction,
     User,
     UserGridPreference,
@@ -26,6 +27,7 @@ from core.admin import (
     CategoryBudgetAdmin,
     CSVUploadAdmin,
     ExpenseMonthAdmin,
+    MerchantRuleAdmin,
     TransactionAdmin,
     UserAdmin,
     UserGridPreferenceAdmin,
@@ -62,6 +64,8 @@ CategoryBudget.Meta.unique_together
 CategoryBudget.Meta.verbose_name
 CategoryBudget.Meta.verbose_name_plural
 
+MerchantRule.Meta.unique_together
+
 # ── Signal receiver ────────────────────────────────────────────────────────────
 seed_default_categories
 
@@ -97,6 +101,12 @@ CSVUploadAdmin.ordering
 
 UserGridPreferenceAdmin.list_display
 UserGridPreferenceAdmin.search_fields
+
+MerchantRuleAdmin.list_display
+MerchantRuleAdmin.list_filter
+MerchantRuleAdmin.search_fields
+
+CategoryBudgetAdmin.list_filter
 
 CategoryBudgetAdmin.list_display
 CategoryBudgetAdmin.list_filter

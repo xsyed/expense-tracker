@@ -696,7 +696,10 @@
       headerName: 'Category',
       editable: true,
       cellEditor: CategorySearchEditor,
-      valueFormatter: params => params.value || '—',
+      valueFormatter: params => {
+        if (!params.value) return '—';
+        return params.data.auto_categorized ? params.value + ' 🤖' : params.value;
+      },
       width: 170,
     },
   ];
