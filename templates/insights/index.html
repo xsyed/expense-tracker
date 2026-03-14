@@ -211,7 +211,64 @@
 
   </div>
   <div class="tab-pane fade" id="recurring" role="tabpanel" aria-labelledby="recurring-tab">
-    <p class="text-muted">Coming soon.</p>
+
+    <!-- Loading -->
+    <div id="recurring-loading" class="text-center py-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading…</span>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="recurring-empty" class="text-center py-5 d-none">
+      <i class="bi bi-arrow-repeat fs-1 text-muted"></i>
+      <p class="text-muted mt-3">
+        No recurring expenses detected yet.<br>
+        Add more transaction history and recurring patterns will appear here.
+      </p>
+    </div>
+
+    <!-- Content -->
+    <div id="recurring-content" class="d-none">
+
+      <!-- Summary cards -->
+      <div class="row g-3 mb-4">
+        <div class="col-sm-6">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <div class="text-muted small mb-1">Total Monthly Recurring</div>
+              <div class="fw-bold fs-4" id="recurring-monthly">—</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <div class="text-muted small mb-1">Total Annual Recurring</div>
+              <div class="fw-bold fs-4" id="recurring-annual">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sortable table -->
+      <div class="table-responsive">
+        <table class="table table-hover align-middle" id="recurring-table">
+          <thead>
+            <tr>
+              <th role="button" data-sort="description">Description <i class="bi bi-arrow-down-up text-muted small"></i></th>
+              <th role="button" data-sort="avg_amount" class="text-end">Avg Amount <i class="bi bi-arrow-down-up text-muted small"></i></th>
+              <th role="button" data-sort="frequency">Frequency <i class="bi bi-arrow-down-up text-muted small"></i></th>
+              <th role="button" data-sort="months_detected" class="text-end">Months <i class="bi bi-arrow-down-up text-muted small"></i></th>
+              <th role="button" data-sort="annual_estimate" class="text-end">Annual Est. <i class="bi bi-arrow-down-up text-muted small"></i></th>
+            </tr>
+          </thead>
+          <tbody id="recurring-table-body"></tbody>
+        </table>
+      </div>
+
+    </div>
+
   </div>
   <div class="tab-pane fade" id="trends" role="tabpanel" aria-labelledby="trends-tab">
     <p class="text-muted">Coming soon.</p>
@@ -912,6 +969,79 @@
         goalsLoaded = true;
         fetchGoalsData();
       }
+    });
+  });
+
+  // ── Recurring Expenses Tab ──
+
+  let recurringLoaded = false;
+  let recurringData = [];
+  let recurringSortKey = 'annual_estimate';
+  let recurringSortAsc = false;
+
+  const FREQ_LABELS = { monthly: 'Monthly', quarterly: 'Quarterly', other: 'Other' };
+
+  function renderRecurringTable() {
+    const sorted = recurringData.slice().sort(function(a, b) {
+      let va = a[recurringSortKey], vb = b[recurringSortKey];
+      if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+      if (va < vb) return recurringSortAsc ? -1 : 1;
+      if (va > vb) return recurringSortAsc ? 1 : -1;
+      return 0;
+    });
+    document.getElementById('recurring-table-body').innerHTML = sorted.map(function(item) {
+      return '<tr>' +
+        '<td>' + escapeHtml(item.description) + '</td>' +
+        '<td class="text-end">' + fmtCurrency(item.avg_amount) + '</td>' +
+        '<td><span class="badge bg-secondary">' + (FREQ_LABELS[item.frequency] || item.frequency) + '</span></td>' +
+        '<td class="text-end">' + item.months_detected + '</td>' +
+        '<td class="text-end fw-semibold">' + fmtCurrency(item.annual_estimate) + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function fetchRecurringData() {
+    document.getElementById('recurring-loading').classList.remove('d-none');
+    document.getElementById('recurring-empty').classList.add('d-none');
+    document.getElementById('recurring-content').classList.add('d-none');
+    fetch('/api/insights/recurring-data/')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        document.getElementById('recurring-loading').classList.add('d-none');
+        if (data.items.length === 0) {
+          document.getElementById('recurring-empty').classList.remove('d-none');
+          return;
+        }
+        document.getElementById('recurring-content').classList.remove('d-none');
+        document.getElementById('recurring-monthly').textContent = fmtCurrency(data.summary.total_monthly_recurring);
+        document.getElementById('recurring-annual').textContent = fmtCurrency(data.summary.total_annual_recurring);
+        recurringData = data.items;
+        renderRecurringTable();
+      })
+      .catch(function(err) {
+        console.error('Failed to fetch recurring data:', err);
+        document.getElementById('recurring-loading').classList.add('d-none');
+      });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('recurring-tab').addEventListener('shown.bs.tab', function() {
+      if (!recurringLoaded) {
+        recurringLoaded = true;
+        fetchRecurringData();
+      }
+    });
+    document.getElementById('recurring-table').querySelector('thead').addEventListener('click', function(e) {
+      var th = e.target.closest('th[data-sort]');
+      if (!th) return;
+      var key = th.dataset.sort;
+      if (recurringSortKey === key) {
+        recurringSortAsc = !recurringSortAsc;
+      } else {
+        recurringSortKey = key;
+        recurringSortAsc = (key === 'description');
+      }
+      renderRecurringTable();
     });
   });
 </script>
