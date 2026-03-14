@@ -13,10 +13,22 @@
   <div class="card-body">
     <form method="post" class="row g-2 align-items-start">
       {% csrf_token %}
-      <div class="col-auto flex-grow-1">
+      <div class="col-sm">
         {{ form.name }}
         {% if form.name.errors %}
           <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="col-sm-auto">
+        {{ form.account_type }}
+        {% if form.account_type.errors %}
+          <div class="text-danger small mt-1">{{ form.account_type.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="col-sm" id="credit-limit-field" style="display:none;">
+        {{ form.credit_limit }}
+        {% if form.credit_limit.errors %}
+          <div class="text-danger small mt-1">{{ form.credit_limit.errors.0 }}</div>
         {% endif %}
       </div>
       <div class="col-auto">
@@ -35,7 +47,19 @@
   <ul class="list-group list-group-flush">
     {% for account in accounts %}
     <li class="list-group-item d-flex justify-content-between align-items-center">
-      <span><i class="bi bi-credit-card me-2 text-muted"></i>{{ account.name }}</span>
+      <span>
+        <i class="bi bi-credit-card me-2 text-muted"></i>{{ account.name }}
+        {% if account.account_type == "credit_card" %}
+          <span class="badge bg-danger ms-1">Credit Card</span>
+        {% elif account.account_type == "savings" %}
+          <span class="badge bg-success ms-1">Savings</span>
+        {% else %}
+          <span class="badge bg-secondary ms-1">Chequing</span>
+        {% endif %}
+        {% if account.account_type == "credit_card" and account.credit_limit %}
+          <span class="text-muted small ms-2">Limit: ${{ account.credit_limit }}</span>
+        {% endif %}
+      </span>
       <div>
         <a href="{% url 'account_edit' account.pk %}" class="btn btn-sm btn-outline-secondary me-1">
           <i class="bi bi-pencil"></i> Edit
@@ -51,4 +75,16 @@
   <div class="card-body text-muted">No accounts yet. Add one above.</div>
   {% endif %}
 </div>
+
+<script>
+(function () {
+  var typeSelect = document.getElementById('id_account_type');
+  var limitField = document.getElementById('credit-limit-field');
+  function toggleLimit() {
+    limitField.style.display = typeSelect.value === 'credit_card' ? '' : 'none';
+  }
+  typeSelect.addEventListener('change', toggleLimit);
+  toggleLimit();
+})();
+</script>
 {% endblock %}

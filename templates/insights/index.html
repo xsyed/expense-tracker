@@ -1374,25 +1374,51 @@
     var container = document.getElementById('accounts-cards');
     container.innerHTML = '';
     accounts.forEach(function(acc) {
-      var netColor = acc.net >= 0 ? STATUS_GREEN : STATUS_RED;
-      var netSign = acc.net >= 0 ? '+' : '';
+      var isCreditCard = acc.account_type === 'credit_card';
+      var netColor = isCreditCard
+        ? (acc.net > 0 ? STATUS_RED : STATUS_GREEN)
+        : (acc.net >= 0 ? STATUS_GREEN : STATUS_RED);
+      var netSign = (!isCreditCard && acc.net >= 0) ? '+' : '';
+      var incomeLabel = isCreditCard ? 'Payments' : 'Income';
+      var expenseLabel = isCreditCard ? 'Charges' : 'Expenses';
+      var netLabel = isCreditCard ? 'Balance' : 'Net';
+
+      var typeBadge = '';
+      if (acc.account_type === 'credit_card') {
+        typeBadge = '<span class="badge bg-danger ms-1" style="font-size:0.7em;">Credit Card</span>';
+      } else if (acc.account_type === 'savings') {
+        typeBadge = '<span class="badge bg-success ms-1" style="font-size:0.7em;">Savings</span>';
+      } else {
+        typeBadge = '<span class="badge bg-secondary ms-1" style="font-size:0.7em;">Chequing</span>';
+      }
+
+      var creditLimitRow = '';
+      if (isCreditCard && acc.credit_limit != null) {
+        creditLimitRow =
+          '<div class="d-flex justify-content-between mb-1">' +
+            '<span class="text-muted small">Credit Limit</span>' +
+            '<span class="fw-semibold text-muted">' + fmtCurrency(acc.credit_limit) + '</span>' +
+          '</div>';
+      }
+
       var col = document.createElement('div');
       col.className = 'col-sm-6 col-lg-4';
       col.innerHTML =
         '<div class="card border-0 shadow-sm h-100">' +
           '<div class="card-body">' +
-            '<h6 class="card-title fw-semibold mb-3">' + escapeHtml(acc.name) + '</h6>' +
-            '<div class="d-flex justify-content-between mb-1">' +
-              '<span class="text-muted small">Income</span>' +
+            '<h6 class="card-title fw-semibold mb-1">' + escapeHtml(acc.name) + typeBadge + '</h6>' +
+            creditLimitRow +
+            '<div class="d-flex justify-content-between mb-1 mt-2">' +
+              '<span class="text-muted small">' + incomeLabel + '</span>' +
               '<span class="fw-semibold" style="color:' + STATUS_GREEN + ';">' + fmtCurrency(acc.total_income) + '</span>' +
             '</div>' +
             '<div class="d-flex justify-content-between mb-1">' +
-              '<span class="text-muted small">Expenses</span>' +
+              '<span class="text-muted small">' + expenseLabel + '</span>' +
               '<span class="fw-semibold" style="color:' + STATUS_RED + ';">' + fmtCurrency(acc.total_expense) + '</span>' +
             '</div>' +
             '<hr class="my-2">' +
             '<div class="d-flex justify-content-between">' +
-              '<span class="text-muted small">Net</span>' +
+              '<span class="text-muted small">' + netLabel + '</span>' +
               '<span class="fw-bold" style="color:' + netColor + ';">' + netSign + fmtCurrency(Math.abs(acc.net)) + '</span>' +
             '</div>' +
           '</div>' +

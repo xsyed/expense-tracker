@@ -13,13 +13,15 @@ def accounts_overview_data_view(request: HttpRequest) -> JsonResponse:
     user = request.user
     month_keys, month_starts = parse_month_range(request.GET.get("months"))
 
-    accounts = list(Account.objects.filter(user=user).values_list("id", "name"))
+    accounts = list(Account.objects.filter(user=user).values_list("id", "name", "account_type", "credit_limit"))
 
     if not accounts:
         return JsonResponse({"months": month_keys, "accounts": []})
 
     account_ids = [a[0] for a in accounts]
     account_names = {a[0]: a[1] for a in accounts}
+    account_types = {a[0]: a[2] for a in accounts}
+    account_limits: dict[int, float | None] = {a[0]: float(a[3]) if a[3] is not None else None for a in accounts}
 
     rows = (
         Transaction.objects.filter(
@@ -49,12 +51,15 @@ def accounts_overview_data_view(request: HttpRequest) -> JsonResponse:
         monthly = acc_monthly[aid]
         total_income = round(sum(monthly[mk]["income"] for mk in month_keys), 2)
         total_expense = round(sum(monthly[mk]["expense"] for mk in month_keys), 2)
-        net = round(total_income - total_expense, 2)
+        is_credit_card = account_types[aid] == "credit_card"
+        net = round(total_expense - total_income, 2) if is_credit_card else round(total_income - total_expense, 2)
         monthly_income = [round(monthly[mk]["income"], 2) for mk in month_keys]
         monthly_expense = [round(monthly[mk]["expense"], 2) for mk in month_keys]
         result.append(
             {
                 "name": account_names[aid],
+                "account_type": account_types[aid],
+                "credit_limit": account_limits[aid],
                 "total_income": total_income,
                 "total_expense": total_expense,
                 "net": net,

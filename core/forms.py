@@ -111,9 +111,13 @@ class CategoryForm(forms.ModelForm[Category]):
 class AccountForm(forms.ModelForm[Account]):
     class Meta:
         model = Account
-        fields = ["name"]
+        fields = ["name", "account_type", "credit_limit"]
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Account name"}),
+            "account_type": forms.Select(attrs={"class": "form-select", "id": "id_account_type"}),
+            "credit_limit": forms.NumberInput(
+                attrs={"class": "form-control", "placeholder": "e.g. 5000", "min": "0", "step": "0.01"}
+            ),
         }
 
     def __init__(self, *args: Any, user: UserModel | None = None, **kwargs: Any) -> None:
@@ -129,6 +133,16 @@ class AccountForm(forms.ModelForm[Account]):
         if qs.exists():
             raise forms.ValidationError("You already have an account with this name.")
         return name
+
+    def clean(self) -> dict[str, Any]:
+        cleaned = super().clean() or {}
+        account_type = cleaned.get("account_type")
+        credit_limit = cleaned.get("credit_limit")
+        if account_type != "credit_card":
+            cleaned["credit_limit"] = None
+        elif credit_limit is not None and credit_limit <= 0:
+            self.add_error("credit_limit", "Credit limit must be greater than zero.")
+        return cleaned
 
 
 MONTH_CHOICES = [
