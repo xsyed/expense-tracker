@@ -12,6 +12,9 @@ from django.shortcuts import render
 
 from .models import CategoryBudget, ExpenseMonth, Goal, GoalContribution, Transaction
 
+# Max months to project forward for savings goals
+_MAX_PROJECTION_MONTHS = 120
+
 
 @login_required
 def insights_view(request: HttpRequest) -> HttpResponse:
@@ -276,3 +279,124 @@ def burn_rate_data_view(request: HttpRequest) -> JsonResponse:
         ideal.append(round(ideal_daily * day, 2))
 
     return JsonResponse({"days": days, "actual": actual, "ideal": ideal, "total_budget": total_budget})
+
+
+def _next_month(year: int, month: int) -> tuple[int, int]:
+    return (year + 1, 1) if month == 12 else (year, month + 1)  # noqa: PLR2004
+
+
+@login_required
+def goal_projection_data_view(request: HttpRequest, pk: int) -> JsonResponse:
+    goal = Goal.objects.filter(pk=pk, user=request.user, goal_type="savings").first()
+    if goal is None:
+        return JsonResponse({"error": "Goal not found"}, status=404)
+
+    contributions = list(goal.contributions.order_by("date"))
+    target = float(goal.target_amount)
+
+    # Build monthly cumulative
+    monthly_totals: dict[str, float] = {}
+    for c in contributions:
+        key = c.date.strftime("%Y-%m")
+        monthly_totals[key] = monthly_totals.get(key, 0.0) + float(c.amount)
+
+    if not monthly_totals:
+        return JsonResponse(
+            {
+                "goal_name": goal.name,
+                "target_amount": target,
+                "deadline": goal.deadline.isoformat() if goal.deadline else None,
+                "historical": [],
+                "projected": [],
+                "estimated_completion": None,
+            }
+        )
+
+    sorted_months = sorted(monthly_totals.keys())
+    historical: list[dict[str, Any]] = []
+    cumulative = 0.0
+    for m in sorted_months:
+        cumulative += monthly_totals[m]
+        historical.append({"month": m, "cumulative": round(cumulative, 2)})
+
+    # Average monthly contribution
+    avg_monthly = cumulative / len(sorted_months)
+
+    # Project forward
+    projected: list[dict[str, Any]] = []
+    estimated_completion: str | None = None
+    if cumulative < target and avg_monthly > 0:
+        last_month = sorted_months[-1]
+        proj_year, proj_month = int(last_month[:4]), int(last_month[5:7])
+        proj_cumulative = cumulative
+        for _ in range(_MAX_PROJECTION_MONTHS):
+            proj_year, proj_month = _next_month(proj_year, proj_month)
+            proj_cumulative += avg_monthly
+            month_key = f"{proj_year:04d}-{proj_month:02d}"
+            projected.append({"month": month_key, "cumulative": round(min(proj_cumulative, target), 2)})
+            if proj_cumulative >= target:
+                estimated_completion = month_key
+                break
+
+    return JsonResponse(
+        {
+            "goal_name": goal.name,
+            "target_amount": target,
+            "deadline": goal.deadline.isoformat() if goal.deadline else None,
+            "historical": historical,
+            "projected": projected,
+            "estimated_completion": estimated_completion,
+        }
+    )
+
+
+@login_required
+def spending_trend_data_view(request: HttpRequest, pk: int) -> JsonResponse:
+    goal = Goal.objects.filter(pk=pk, user=request.user, goal_type="spending").select_related("category").first()
+    if goal is None:
+        return JsonResponse({"error": "Goal not found"}, status=404)
+
+    target = float(goal.target_amount)
+    today = datetime.date.today()
+
+    # Build last 6 months
+    months: list[str] = []
+    month_starts: list[datetime.date] = []
+    y, m = today.year, today.month
+    for _ in range(6):
+        months.append(f"{y:04d}-{m:02d}")
+        month_starts.append(datetime.date(y, m, 1))
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    months.reverse()
+    month_starts.reverse()
+
+    spending: list[float] = [0.0] * 6
+    if goal.category_id is not None:
+        rows = (
+            Transaction.objects.filter(
+                expense_month__user=request.user,
+                expense_month__month__in=month_starts,
+                category_id=goal.category_id,
+                transaction_type="expense",
+            )
+            .values("expense_month__month")
+            .annotate(total=Sum("amount"))
+        )
+        month_map: dict[str, float] = {}
+        for row in rows:
+            key = row["expense_month__month"].strftime("%Y-%m")
+            month_map[key] = float(row["total"] or 0)
+        spending = [round(month_map.get(m, 0.0), 2) for m in months]
+
+    return JsonResponse(
+        {
+            "goal_name": goal.name,
+            "target_amount": target,
+            "category_name": goal.category.name if goal.category else "",
+            "months": months,
+            "spending": spending,
+        }
+    )

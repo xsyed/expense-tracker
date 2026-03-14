@@ -180,6 +180,33 @@
           <div id="goals-timeline-chart"></div>
         </div>
       </div>
+
+      <!-- Goal Projection Chart (Savings Goals) -->
+      <div id="projection-section" class="d-none mt-4">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h6 class="card-title fw-semibold mb-0">Goal Projection</h6>
+              <select id="projection-goal-select" class="form-select form-select-sm w-auto"></select>
+            </div>
+            <div id="projection-chart"></div>
+            <div id="projection-completion" class="small text-muted mt-2"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Spending Goal Trend Chart -->
+      <div id="spending-trend-section" class="d-none mt-4">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h6 class="card-title fw-semibold mb-0">Spending Goal Trend</h6>
+              <select id="spending-trend-goal-select" class="form-select form-select-sm w-auto"></select>
+            </div>
+            <div id="spending-trend-chart"></div>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -670,11 +697,213 @@
         document.getElementById('goals-content').classList.remove('d-none');
         renderGoalCards(data.goals);
         renderGoalsTimeline(data.timeline);
+        initProjectionWidget(data.goals.filter(function(g) { return g.goal_type === 'savings'; }));
+        initSpendingTrendWidget(data.goals.filter(function(g) { return g.goal_type === 'spending'; }));
       })
       .catch(function(err) {
         console.error('Failed to fetch goals data:', err);
         document.getElementById('goals-loading').classList.add('d-none');
       });
+  }
+
+  // ── Goal Projection Chart (Savings) ──
+
+  let projectionChart = null;
+
+  function initProjectionWidget(savingsGoals) {
+    const section = document.getElementById('projection-section');
+    if (savingsGoals.length === 0) {
+      section.classList.add('d-none');
+      return;
+    }
+    section.classList.remove('d-none');
+    const select = document.getElementById('projection-goal-select');
+    select.innerHTML = '';
+    savingsGoals.forEach(function(g) {
+      const opt = document.createElement('option');
+      opt.value = g.id;
+      opt.textContent = g.name;
+      select.appendChild(opt);
+    });
+    select.onchange = function() { fetchProjectionData(this.value); };
+    fetchProjectionData(savingsGoals[0].id);
+  }
+
+  function fmtMonthLabel(m) {
+    var parts = m.split('-');
+    return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1)
+      .toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+  }
+
+  function fetchProjectionData(goalId) {
+    fetch('/api/insights/goals/' + goalId + '/projection/')
+      .then(function(r) { return r.json(); })
+      .then(function(data) { renderProjectionChart(data); })
+      .catch(function(err) { console.error('Failed to fetch projection:', err); });
+  }
+
+  function renderProjectionChart(data) {
+    var chartEl = document.getElementById('projection-chart');
+    var completionEl = document.getElementById('projection-completion');
+    if (projectionChart) { projectionChart.destroy(); projectionChart = null; }
+
+    if (data.historical.length === 0) {
+      chartEl.innerHTML = '<p class="text-muted text-center py-4">No contributions recorded yet.</p>';
+      completionEl.textContent = '';
+      return;
+    }
+
+    var allMonths = data.historical.map(function(p) { return p.month; });
+    var historicalVals = data.historical.map(function(p) { return p.cumulative; });
+    var projectedVals = new Array(data.historical.length).fill(null);
+
+    // Bridge: last historical point is first projected point
+    if (data.projected.length > 0) {
+      projectedVals[projectedVals.length - 1] = data.historical[data.historical.length - 1].cumulative;
+    }
+    data.projected.forEach(function(p) {
+      allMonths.push(p.month);
+      historicalVals.push(null);
+      projectedVals.push(p.cumulative);
+    });
+
+    var labels = allMonths.map(fmtMonthLabel);
+
+    var annotations = {
+      yaxis: [{
+        y: data.target_amount,
+        borderColor: STATUS_RED,
+        strokeDashArray: 4,
+        label: { text: 'Target: ' + fmtCurrency(data.target_amount), style: { fontSize: '12px' } },
+      }],
+      xaxis: [],
+    };
+
+    if (data.deadline) {
+      var dlParts = data.deadline.split('-');
+      var dlLabel = fmtMonthLabel(dlParts[0] + '-' + dlParts[1]);
+      var dlIdx = labels.indexOf(dlLabel);
+      if (dlIdx >= 0) {
+        annotations.xaxis.push({
+          x: dlLabel,
+          borderColor: '#6f42c1',
+          strokeDashArray: 4,
+          label: { text: 'Deadline', style: { fontSize: '12px' } },
+        });
+      } else {
+        annotations.xaxis.push({
+          x: labels[labels.length - 1],
+          borderColor: '#6f42c1',
+          strokeDashArray: 4,
+          label: { text: 'Deadline: ' + dlLabel, style: { fontSize: '12px' } },
+        });
+      }
+    }
+
+    var options = {
+      chart: {
+        type: 'line',
+        height: 350,
+        toolbar: { show: false },
+        fontFamily: 'inherit',
+        animations: { enabled: false },
+      },
+      series: [
+        { name: 'Actual', data: historicalVals },
+        { name: 'Projected', data: projectedVals },
+      ],
+      xaxis: { categories: labels, labels: { rotate: -45, hideOverlappingLabels: true } },
+      yaxis: {
+        labels: { formatter: function(val) { return val !== null ? fmtCurrency(val) : ''; } },
+      },
+      colors: [STATUS_GREEN, '#0d6efd'],
+      stroke: { width: [3, 3], dashArray: [0, 5] },
+      tooltip: { y: { formatter: function(val) { return val !== null ? fmtCurrency(val) : ''; } } },
+      legend: { position: 'top', fontSize: '13px' },
+      grid: { borderColor: '#e9ecef' },
+      annotations: annotations,
+    };
+
+    projectionChart = new ApexCharts(chartEl, options);
+    projectionChart.render();
+
+    if (data.estimated_completion) {
+      completionEl.innerHTML = '<i class="bi bi-calendar-check me-1"></i>Estimated completion: <strong>' +
+        fmtMonthLabel(data.estimated_completion) + '</strong>';
+    } else if (data.historical.length > 0 && data.projected.length === 0) {
+      completionEl.innerHTML = '<i class="bi bi-check-circle me-1"></i>Goal already reached!';
+    } else {
+      completionEl.textContent = '';
+    }
+  }
+
+  // ── Spending Goal Trend ──
+
+  let spendingTrendChart = null;
+
+  function initSpendingTrendWidget(spendingGoals) {
+    var section = document.getElementById('spending-trend-section');
+    if (spendingGoals.length === 0) {
+      section.classList.add('d-none');
+      return;
+    }
+    section.classList.remove('d-none');
+    var select = document.getElementById('spending-trend-goal-select');
+    select.innerHTML = '';
+    spendingGoals.forEach(function(g) {
+      var opt = document.createElement('option');
+      opt.value = g.id;
+      opt.textContent = g.name;
+      select.appendChild(opt);
+    });
+    select.onchange = function() { fetchSpendingTrend(this.value); };
+    fetchSpendingTrend(spendingGoals[0].id);
+  }
+
+  function fetchSpendingTrend(goalId) {
+    fetch('/api/insights/goals/' + goalId + '/spending-trend/')
+      .then(function(r) { return r.json(); })
+      .then(function(data) { renderSpendingTrendChart(data); })
+      .catch(function(err) { console.error('Failed to fetch spending trend:', err); });
+  }
+
+  function renderSpendingTrendChart(data) {
+    var chartEl = document.getElementById('spending-trend-chart');
+    if (spendingTrendChart) { spendingTrendChart.destroy(); spendingTrendChart = null; }
+
+    var labels = data.months.map(fmtMonthLabel);
+
+    var options = {
+      chart: {
+        type: 'line',
+        height: 350,
+        toolbar: { show: false },
+        fontFamily: 'inherit',
+        animations: { enabled: false },
+      },
+      series: [{ name: data.category_name || 'Spending', data: data.spending }],
+      xaxis: { categories: labels },
+      yaxis: {
+        labels: { formatter: function(val) { return fmtCurrency(val); } },
+      },
+      colors: ['#0d6efd'],
+      stroke: { width: 3 },
+      markers: { size: 5 },
+      tooltip: { y: { formatter: function(val) { return fmtCurrency(val); } } },
+      legend: { show: false },
+      grid: { borderColor: '#e9ecef' },
+      annotations: {
+        yaxis: [{
+          y: data.target_amount,
+          borderColor: STATUS_RED,
+          strokeDashArray: 4,
+          label: { text: 'Target: ' + fmtCurrency(data.target_amount), style: { fontSize: '12px' } },
+        }],
+      },
+    };
+
+    spendingTrendChart = new ApexCharts(chartEl, options);
+    spendingTrendChart.render();
   }
 
   document.addEventListener('DOMContentLoaded', function() {
