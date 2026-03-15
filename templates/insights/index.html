@@ -227,7 +227,7 @@
               <th role="button" data-sort="description">Description <i class="bi bi-arrow-down-up text-muted small"></i></th>
               <th role="button" data-sort="avg_amount" class="text-end">Avg Amount <i class="bi bi-arrow-down-up text-muted small"></i></th>
               <th role="button" data-sort="frequency">Frequency <i class="bi bi-arrow-down-up text-muted small"></i></th>
-              <th role="button" data-sort="months_detected" class="text-end">Months <i class="bi bi-arrow-down-up text-muted small"></i></th>
+              <th role="button" data-sort="occurrences" class="text-end">Occurrences <i class="bi bi-arrow-down-up text-muted small"></i></th>
               <th role="button" data-sort="annual_estimate" class="text-end">Annual Est. <i class="bi bi-arrow-down-up text-muted small"></i></th>
             </tr>
           </thead>
@@ -1184,7 +1184,7 @@
   let recurringSortKey = 'annual_estimate';
   let recurringSortAsc = false;
 
-  const FREQ_LABELS = { monthly: 'Monthly', quarterly: 'Quarterly', other: 'Other' };
+  const FREQ_LABELS = { weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', other: 'Other' };
 
   function renderRecurringTable() {
     const sorted = recurringData.slice().sort(function(a, b) {
@@ -1199,7 +1199,7 @@
         '<td>' + escapeHtml(item.description) + '</td>' +
         '<td class="text-end">' + fmtCurrency(item.avg_amount) + '</td>' +
         '<td><span class="badge bg-secondary">' + (FREQ_LABELS[item.frequency] || item.frequency) + '</span></td>' +
-        '<td class="text-end">' + item.months_detected + '</td>' +
+        '<td class="text-end">' + item.occurrences + '</td>' +
         '<td class="text-end fw-semibold">' + fmtCurrency(item.annual_estimate) + '</td>' +
         '</tr>';
     }).join('');

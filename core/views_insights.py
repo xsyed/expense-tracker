@@ -413,7 +413,7 @@ def recurring_data_view(request: HttpRequest) -> JsonResponse:
         ).values_list("description", "amount", "date")
     )
     items = detect_recurring(transactions)
-    total_monthly = sum(float(str(i["avg_amount"])) for i in items if i["frequency"] == "monthly")
+    total_monthly = sum(float(str(i["annual_estimate"])) / 12 for i in items)
     total_annual = sum(float(str(i["annual_estimate"])) for i in items)
     return JsonResponse(
         {
