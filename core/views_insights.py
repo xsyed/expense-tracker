@@ -12,7 +12,7 @@ from django.shortcuts import render
 
 from .models import CategoryBudget, ExpenseMonth, Goal, GoalContribution, Transaction
 from .models import User as UserModel
-from .recurring_utils import detect_recurring
+from .recurring_utils import build_category_breakdown, detect_recurring
 
 # Max months to project forward for savings goals
 _MAX_PROJECTION_MONTHS = 120
@@ -406,15 +406,17 @@ def spending_trend_data_view(request: HttpRequest, pk: int) -> JsonResponse:
 
 @login_required
 def recurring_data_view(request: HttpRequest) -> JsonResponse:
-    transactions = list(
+    transactions_with_cats = list(
         Transaction.objects.filter(
             expense_month__user=request.user,
             transaction_type="expense",
-        ).values_list("description", "amount", "date")
+        ).values_list("description", "amount", "date", "category__name")
     )
+    transactions = [(desc, amount, date) for desc, amount, date, _cat in transactions_with_cats]
     items = detect_recurring(transactions)
     total_monthly = sum(float(str(i["annual_estimate"])) / 12 for i in items)
     total_annual = sum(float(str(i["annual_estimate"])) for i in items)
+    category_breakdown = build_category_breakdown(transactions_with_cats, items)
     return JsonResponse(
         {
             "items": items,
@@ -422,5 +424,6 @@ def recurring_data_view(request: HttpRequest) -> JsonResponse:
                 "total_monthly_recurring": round(total_monthly, 2),
                 "total_annual_recurring": round(total_annual, 2),
             },
+            "category_breakdown": category_breakdown,
         }
     )

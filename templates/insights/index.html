@@ -219,6 +219,20 @@
         </div>
       </div>
 
+      <!-- Recurring by Category Treemap -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-transparent border-0 d-flex align-items-center justify-content-between py-3">
+          <span class="fw-semibold">Recurring by Category</span>
+          <div class="btn-group btn-group-sm" id="recurring-chart-toggle">
+            <button type="button" class="btn btn-outline-primary active" data-basis="monthly">Monthly</button>
+            <button type="button" class="btn btn-outline-primary" data-basis="annual">Annual</button>
+          </div>
+        </div>
+        <div class="card-body pt-0">
+          <div id="recurring-treemap"></div>
+        </div>
+      </div>
+
       <!-- Sortable table -->
       <div class="table-responsive">
         <table class="table table-hover align-middle" id="recurring-table">
@@ -1183,6 +1197,9 @@
   let recurringData = [];
   let recurringSortKey = 'annual_estimate';
   let recurringSortAsc = false;
+  let recurringCategoryData = [];
+  let recurringChartBasis = 'monthly';
+  let recurringTreemapChart = null;
 
   const FREQ_LABELS = { weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', other: 'Other' };
 
@@ -1205,6 +1222,36 @@
     }).join('');
   }
 
+  function renderRecurringTreemap() {
+    if (recurringCategoryData.length === 0) return;
+    var seriesData = recurringCategoryData.map(function(d) {
+      return { x: d.category, y: d[recurringChartBasis] };
+    });
+    var options = {
+      chart: {
+        type: 'treemap',
+        height: 300,
+        toolbar: { show: false },
+        fontFamily: 'inherit',
+        animations: { enabled: false },
+      },
+      series: [{ data: seriesData }],
+      dataLabels: {
+        formatter: function(text, op) { return [text, fmtCurrency(op.value)]; },
+      },
+      tooltip: {
+        y: { formatter: function(val) { return fmtCurrency(val); } },
+      },
+      legend: { show: false },
+    };
+    if (recurringTreemapChart) {
+      recurringTreemapChart.updateOptions(options);
+    } else {
+      recurringTreemapChart = new ApexCharts(document.getElementById('recurring-treemap'), options);
+      recurringTreemapChart.render();
+    }
+  }
+
   function fetchRecurringData() {
     document.getElementById('recurring-loading').classList.remove('d-none');
     document.getElementById('recurring-empty').classList.add('d-none');
@@ -1222,6 +1269,8 @@
         document.getElementById('recurring-annual').textContent = fmtCurrency(data.summary.total_annual_recurring);
         recurringData = data.items;
         renderRecurringTable();
+        recurringCategoryData = data.category_breakdown;
+        renderRecurringTreemap();
       })
       .catch(function(err) {
         console.error('Failed to fetch recurring data:', err);
@@ -1247,6 +1296,14 @@
         recurringSortAsc = (key === 'description');
       }
       renderRecurringTable();
+    });
+    document.getElementById('recurring-chart-toggle').addEventListener('click', function(e) {
+      var btn = e.target.closest('button[data-basis]');
+      if (!btn) return;
+      recurringChartBasis = btn.dataset.basis;
+      this.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      renderRecurringTreemap();
     });
   });
 

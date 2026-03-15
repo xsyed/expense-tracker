@@ -126,3 +126,33 @@ def detect_recurring(
             seen.add(key)
             deduped.append(item)
     return deduped
+
+
+def build_category_breakdown(
+    transactions_with_cats: list[tuple[str, Decimal, datetime.date, str | None]],
+    recurring_items: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    desc_cat_counter: dict[str, Counter[str]] = defaultdict(Counter)
+    for desc, _amount, _date, category in transactions_with_cats:
+        norm = _normalize_for_recurring(desc)
+        if norm:
+            desc_cat_counter[norm][category or "Uncategorized"] += 1
+
+    monthly_totals: dict[str, float] = defaultdict(float)
+    annual_totals: dict[str, float] = defaultdict(float)
+    for item in recurring_items:
+        norm = _normalize_for_recurring(str(item["description"]))
+        counter = desc_cat_counter.get(norm)
+        cat = counter.most_common(1)[0][0] if counter else "Uncategorized"
+        annual = float(str(item["annual_estimate"]))
+        monthly_totals[cat] += annual / 12
+        annual_totals[cat] += annual
+
+    return sorted(
+        [
+            {"category": cat, "monthly": round(monthly_totals[cat], 2), "annual": round(annual_totals[cat], 2)}
+            for cat in monthly_totals
+        ],
+        key=lambda x: float(str(x["monthly"])),
+        reverse=True,
+    )
