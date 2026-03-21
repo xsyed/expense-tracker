@@ -865,6 +865,31 @@
       .replace(/"/g, '&quot;');
   }
 
+  function buildContributionTooltip(g) {
+    if (g.days_remaining === null) return null;
+    const remaining = g.target_amount - g.progress_amount;
+    if (g.goal_type === 'spending') {
+      if (remaining <= 0) return 'Budget limit reached or exceeded';
+      if (g.days_remaining < 0) return 'Budget period ended ' + Math.abs(g.days_remaining) + ' days ago';
+      if (g.days_remaining === 0) return 'Last day of budget period';
+      const daily = remaining / g.days_remaining;
+      const lines = ['<strong>Remaining budget pace:</strong>'];
+      lines.push('Daily: ' + fmtCurrency(daily));
+      if (g.days_remaining >= 7) lines.push('Weekly: ' + fmtCurrency(daily * 7));
+      if (g.days_remaining >= 30) lines.push('Monthly: ' + fmtCurrency(daily * 30.44));
+      return lines.join('<br>');
+    }
+    if (remaining <= 0) return 'Goal completed! 🎉';
+    if (g.days_remaining < 0) return 'Deadline passed ' + Math.abs(g.days_remaining) + ' days ago';
+    if (g.days_remaining === 0) return 'Last day! Need ' + fmtCurrency(remaining) + ' today';
+    const daily = remaining / g.days_remaining;
+    const lines = ['<strong>Needed to reach goal:</strong>'];
+    lines.push('Daily: ' + fmtCurrency(daily));
+    if (g.days_remaining >= 7) lines.push('Weekly: ' + fmtCurrency(daily * 7));
+    if (g.days_remaining >= 30) lines.push('Monthly: ' + fmtCurrency(daily * 30.44));
+    return lines.join('<br>');
+  }
+
   function renderGoalCards(goals) {
     const container = document.getElementById('goals-cards');
     container.innerHTML = '';
@@ -879,6 +904,10 @@
       } else {
         deadlineText = g.days_remaining + ' days left';
       }
+      const tooltipContent = buildContributionTooltip(g);
+      const infoIconHtml = tooltipContent !== null
+        ? ' <i class="bi bi-info-circle-fill text-primary" data-bs-toggle="tooltip" data-bs-html="true" style="cursor:default;font-size:0.8em;"></i>'
+        : '';
       const col = document.createElement('div');
       col.className = 'col-sm-6 col-lg-4';
       col.innerHTML =
@@ -898,11 +927,17 @@
               '<span>' + g.pct_complete + '%</span>' +
             '</div>' +
             '<div class="mt-2 small text-muted">' +
-              '<i class="bi bi-calendar3 me-1"></i>' + deadlineText +
+              '<i class="bi bi-calendar3 me-1"></i>' + deadlineText + infoIconHtml +
             '</div>' +
           '</div>' +
         '</div>';
+      if (tooltipContent !== null) {
+        col.querySelector('[data-bs-toggle="tooltip"]').setAttribute('data-bs-title', tooltipContent);
+      }
       container.appendChild(col);
+    });
+    container.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) {
+      new bootstrap.Tooltip(el, { html: true });
     });
   }
 
