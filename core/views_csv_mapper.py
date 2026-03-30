@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import csv
 import io
+from collections.abc import Iterable
 from datetime import date
 from decimal import Decimal
 from typing import IO, Any, TypedDict
@@ -24,6 +25,7 @@ class CsvMapping(TypedDict, total=False):
     desc_col: str
     amount_cols: list[str]
     account_col: str
+    headerless: bool
 
 
 class MonthSummary(TypedDict):
@@ -55,7 +57,14 @@ def _apply_mapping(file: IO[bytes], mapping: CsvMapping) -> list[dict[str, Any]]
     account_col = mapping.get("account_col")
     amount_cols: list[str] = mapping.get("amount_cols") or []
 
-    for row in csv.DictReader(io.StringIO(text)):
+    source: Iterable[Any]
+    if mapping.get("headerless"):
+        raw_rows = list(csv.reader(io.StringIO(text)))
+        source = ({str(j): v for j, v in enumerate(row)} for row in raw_rows)
+    else:
+        source = csv.DictReader(io.StringIO(text))
+
+    for row in source:
         date_str = (row.get(mapping.get("date_col", "")) or "").strip()
         desc_str = (row.get(mapping.get("desc_col", "")) or "").strip()
         account_str: str | None = (row.get(account_col) or "").strip() if account_col else None
@@ -87,6 +96,7 @@ def _build_mapping(post: Any, prefix: str = "") -> CsvMapping:
         "date_col": post.get(f"{prefix}map_date", ""),
         "desc_col": post.get(f"{prefix}map_description", ""),
         "amount_cols": [v for v in post.getlist(f"{prefix}map_amount") if v],
+        "headerless": post.get(f"{prefix}headerless", "") == "true",
     }
     account_col_name: str = post.get(f"{prefix}map_account_col", "")
     if account_col_name:
