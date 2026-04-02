@@ -12,6 +12,7 @@ from core.apps import CoreConfig
 from core.models import (
     Category,
     CategoryBudget,
+    CsvMappingProfile,
     CSVUpload,
     ExpenseMonth,
     MerchantRule,
@@ -65,6 +66,9 @@ CategoryBudget.Meta.verbose_name
 CategoryBudget.Meta.verbose_name_plural
 
 MerchantRule.Meta.unique_together
+
+CsvMappingProfile.Meta.unique_together
+CsvMappingProfile.Meta.ordering
 
 # ── Signal receiver ────────────────────────────────────────────────────────────
 seed_default_categories

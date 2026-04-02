@@ -33,8 +33,12 @@ from core.views_charts import (
 from core.views_csv import csv_upload_view
 from core.views_csv_mapper import (
     csv_mapper_bulk_view,
+    csv_mapper_delete_profile,
     csv_mapper_download_view,
+    csv_mapper_list_profiles,
+    csv_mapper_match_profiles,
     csv_mapper_sample_view,
+    csv_mapper_save_profile,
     csv_mapper_view,
 )
 from core.views_forecasting import forecasting_data_view
@@ -103,6 +107,10 @@ urlpatterns = [
     path("csv-mapper/bulk/", csv_mapper_bulk_view, name="csv_mapper_bulk"),
     path("csv-mapper/download/", csv_mapper_download_view, name="csv_mapper_download"),
     path("csv-mapper/sample.csv", csv_mapper_sample_view, name="csv_mapper_sample"),
+    path("csv-mapper/profiles/", csv_mapper_list_profiles, name="csv_mapper_list_profiles"),
+    path("csv-mapper/profiles/match/", csv_mapper_match_profiles, name="csv_mapper_match_profiles"),
+    path("csv-mapper/profiles/save/", csv_mapper_save_profile, name="csv_mapper_save_profile"),
+    path("csv-mapper/profiles/<int:pk>/delete/", csv_mapper_delete_profile, name="csv_mapper_delete_profile"),
     path("api/insights/budget-data/", budget_data_view, name="budget_data"),
     path("api/insights/burn-rate/", burn_rate_data_view, name="burn_rate_data"),
     path("api/insights/goals-data/", goals_data_view, name="goals_data"),

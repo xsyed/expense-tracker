@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import contextlib
 import csv
+import hashlib
 import io
+import json
 from collections.abc import Iterable
 from datetime import date
 from decimal import Decimal
@@ -12,10 +14,11 @@ from defusedcsv import csv as defusedcsv  # type: ignore[import-untyped]
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.views.decorators.http import require_GET, require_POST
 
 from .csv_parser import CSVParser
 from .merchant_utils import load_merchant_rules, match_merchant
-from .models import Account, ExpenseMonth, Transaction
+from .models import Account, CsvMappingProfile, ExpenseMonth, Transaction
 
 _parser = CSVParser()
 
@@ -258,3 +261,107 @@ def csv_mapper_sample_view(request: HttpRequest) -> HttpResponse:
     response = HttpResponse(content, content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="sample.csv"'
     return response
+
+
+# ── CSV Mapping Profiles ───────────────────────────────────────────────────────
+
+
+def _compute_headers_hash(headers: list[str]) -> str:
+    normalized = sorted(h.strip().lower() for h in headers)
+    return hashlib.sha256("\x00".join(normalized).encode()).hexdigest()
+
+
+@login_required
+@require_POST
+def csv_mapper_match_profiles(request: HttpRequest) -> JsonResponse:
+    body = json.loads(request.body)
+    headers: list[str] = body.get("headers", [])
+    if not headers:
+        return JsonResponse({"profiles": []})
+    headers_hash = _compute_headers_hash(headers)
+    profiles = CsvMappingProfile.objects.filter(user=request.user, headers_hash=headers_hash).select_related("account")
+    return JsonResponse(
+        {
+            "profiles": [
+                {
+                    "id": p.pk,
+                    "name": p.name,
+                    "mapping": p.mapping,
+                    "account_id": p.account_id,
+                    "has_header": p.has_header,
+                }
+                for p in profiles
+            ],
+        }
+    )
+
+
+@login_required
+@require_POST
+def csv_mapper_save_profile(request: HttpRequest) -> JsonResponse:
+    body = json.loads(request.body)
+    headers: list[str] = body.get("headers", [])
+    mapping: dict[str, Any] = body.get("mapping", {})
+    account_id: int | None = body.get("account_id")
+    has_header: bool = body.get("has_header", True)
+    name: str = body.get("name", "")
+
+    if not headers or not mapping:
+        return JsonResponse({"error": "headers and mapping are required."}, status=400)
+    if not account_id:
+        return JsonResponse({"error": "Account is required to save a profile."}, status=400)
+
+    account: Account | None = None
+    if account_id:
+        try:
+            account = Account.objects.get(pk=account_id, user=request.user)
+        except (Account.DoesNotExist, ValueError):
+            return JsonResponse({"error": "Invalid account."}, status=400)
+
+    headers_hash = _compute_headers_hash(headers)
+    if not name:
+        stem = body.get("filename", "CSV")
+        name = f"{account.name} \u2013 {stem}" if account else stem
+
+    profile, _ = CsvMappingProfile.objects.update_or_create(
+        user=request.user,
+        headers_hash=headers_hash,
+        account=account,
+        defaults={
+            "name": name,
+            "headers_json": headers,
+            "mapping": mapping,
+            "has_header": has_header,
+        },
+    )
+    return JsonResponse({"id": profile.pk, "name": profile.name})
+
+
+@login_required
+@require_POST
+def csv_mapper_delete_profile(request: HttpRequest, pk: int) -> JsonResponse:
+    try:
+        profile = CsvMappingProfile.objects.get(pk=pk, user=request.user)
+    except CsvMappingProfile.DoesNotExist:
+        return JsonResponse({"error": "Profile not found."}, status=404)
+    profile.delete()
+    return JsonResponse({"ok": True})
+
+
+@login_required
+@require_GET
+def csv_mapper_list_profiles(request: HttpRequest) -> JsonResponse:
+    profiles = CsvMappingProfile.objects.filter(user=request.user).select_related("account")
+    return JsonResponse(
+        {
+            "profiles": [
+                {
+                    "id": p.pk,
+                    "name": p.name,
+                    "account_name": p.account.name if p.account else None,
+                    "created_at": p.created_at.isoformat(),
+                }
+                for p in profiles
+            ],
+        }
+    )

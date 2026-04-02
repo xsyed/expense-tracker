@@ -215,6 +215,34 @@ class CSVUpload(models.Model):
         return f"{self.filename} ({self.row_count} rows)"
 
 
+class CsvMappingProfile(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="csv_mapping_profiles",
+    )
+    name = models.CharField(max_length=200)
+    headers_hash = models.CharField(max_length=64)
+    headers_json = models.JSONField()
+    mapping = models.JSONField()
+    account = models.ForeignKey(
+        "Account",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="csv_mapping_profiles",
+    )
+    has_header = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("user", "headers_hash", "account")]
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class CategoryBudget(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

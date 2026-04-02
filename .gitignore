@@ -167,6 +167,7 @@ yarn-error.log
 *.sublime-workspace
 .vim/
 .netrwhist
+.github/
 
 # ─────────────────────────────────────────────
 #  macOS

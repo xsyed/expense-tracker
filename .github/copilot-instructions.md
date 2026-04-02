@@ -78,7 +78,6 @@ After **any** correction from the user:
 - **Imports**: isort-style ordering enforced by ruff `I` rules.
 - **Complexity**: max McCabe complexity 10, max 50 statements per function, max 6 returns, max 12 branches.
 - **Module size**: keep every file under 600 lines. Target is 500, then eventually 400. Split by functional concern when a file grows.
-- No pandas dependency anywhere in this project.
 
 ---
 
