@@ -64,6 +64,7 @@ DEFAULT_CATEGORIES = [
 
 class Category(models.Model):
     CATEGORY_TYPES = [("expense", "Expense"), ("income", "Income")]
+    EXPENSE_TYPES = [("fixed", "Fixed"), ("variable", "Variable"), ("savings_transfer", "Savings Transfer")]
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -72,6 +73,7 @@ class Category(models.Model):
     )
     name = models.CharField(max_length=100)
     category_type = models.CharField(max_length=7, choices=CATEGORY_TYPES, default="expense")
+    expense_type = models.CharField(max_length=17, choices=EXPENSE_TYPES, default="variable")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

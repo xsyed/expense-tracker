@@ -87,10 +87,11 @@ class LoginForm(forms.Form):
 class CategoryForm(forms.ModelForm[Category]):
     class Meta:
         model = Category
-        fields = ["name", "category_type"]
+        fields = ["name", "category_type", "expense_type"]
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Category name"}),
             "category_type": forms.Select(attrs={"class": "form-select"}),
+            "expense_type": forms.Select(attrs={"class": "form-select"}),
         }
 
     def __init__(self, *args: Any, user: UserModel | None = None, **kwargs: Any) -> None:

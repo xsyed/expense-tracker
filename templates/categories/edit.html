@@ -26,6 +26,15 @@
               <div class="text-danger small mt-1">{{ form.category_type.errors.0 }}</div>
             {% endif %}
           </div>
+          {% if form.instance.category_type == "expense" %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Expense Type</label>
+            {{ form.expense_type }}
+            {% if form.expense_type.errors %}
+              <div class="text-danger small mt-1">{{ form.expense_type.errors.0 }}</div>
+            {% endif %}
+          </div>
+          {% endif %}
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary">
               <i class="bi bi-check-lg me-1"></i>Save
