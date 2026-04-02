@@ -5,7 +5,7 @@ import io
 import re
 from datetime import date, datetime
 from pathlib import Path
-from typing import IO, Any, cast
+from typing import IO, Any
 
 
 class CSVParser:
@@ -234,9 +234,9 @@ class CSVParser:
                 continue
         # Last-resort: pandas.to_datetime
         try:
-            import pandas as pd  # type: ignore[import-untyped]  # noqa: PLC0415
+            import pandas as pd  # noqa: PLC0415
 
-            return cast(date, pd.to_datetime(s, dayfirst=False).date())
+            return pd.to_datetime(s, dayfirst=False).date()
         except Exception:  # noqa: S110
             pass
         return None

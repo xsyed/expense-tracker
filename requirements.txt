@@ -3,6 +3,8 @@ django-crispy-forms
 crispy-bootstrap5
 python-dotenv
 defusedcsv
+pandas
+pandas-stubs
 mypy
 django-stubs[compatible-mypy]
 django-stubs-ext

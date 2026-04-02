@@ -53,6 +53,7 @@ from core.views_insights import (
     spending_trend_data_view,
 )
 from core.views_months import month_create_view, month_delete_view, month_detail_view, month_edit_view, month_list_view
+from core.views_savings_planner import savings_planner_overview_api, savings_planner_view
 from core.views_transactions import (
     transaction_bulk_delete_view,
     transaction_create_view,
@@ -121,6 +122,8 @@ urlpatterns = [
     path("api/insights/accounts-overview/", accounts_overview_data_view, name="accounts_overview_data"),
     path("api/insights/forecasting/", forecasting_data_view, name="forecasting_data"),
     path("insights/", insights_view, name="insights"),
+    path("savings-planner/", savings_planner_view, name="savings_planner"),
+    path("api/savings-planner/overview/", savings_planner_overview_api, name="savings_planner_overview_api"),
     path("goals/", goal_list_view, name="goal_list"),
     path("goals/create/", goal_create_view, name="goal_create"),
     path("goals/<int:pk>/edit/", goal_edit_view, name="goal_edit"),

@@ -16,6 +16,8 @@ repos:
           - "Django>=4.2,<5"
           - django-crispy-forms
           - crispy-bootstrap5
+          - pandas-stubs
+          - defusedcsv
         args: [--config-file=pyproject.toml]
   - repo: local
     hooks:
