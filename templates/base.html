@@ -51,6 +51,11 @@
             </a>
           </li>
           <li class="nav-item">
+            <a class="nav-link {% if '/savings-planner/' in request.path %}active{% endif %}" href="{% url 'savings_planner' %}">
+              <i class="bi bi-piggy-bank me-1"></i>Savings Planner
+            </a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link {% if '/goals/' in request.path %}active{% endif %}" href="{% url 'goal_list' %}">
               <i class="bi bi-bullseye me-1"></i>Goals
             </a>

@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+
+{% block title %}Savings Planner — Expense Tracker{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-piggy-bank me-2"></i>Savings Planner</h2>
+
+<!-- Loading spinner -->
+<div id="sp-loading" class="text-center py-5">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Loading…</span>
+  </div>
+</div>
+
+<!-- Empty state: no transactions -->
+<div id="sp-empty" class="d-none">
+  <div class="card border-0 shadow-sm mx-auto" style="max-width: 480px;">
+    <div class="card-body text-center py-5">
+      <i class="bi bi-inbox fs-1 text-muted"></i>
+      <p class="text-muted mt-3">
+        No transaction data found. <a href="{% url 'month_create' %}">Upload a CSV or create a month</a> to get started.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Main content (hidden until data loads) -->
+<div id="sp-content" class="d-none">
+
+<!-- Warnings -->
+<div id="sp-unassigned-warning" class="alert alert-warning d-none">
+  <i class="bi bi-exclamation-triangle me-1"></i>
+  <span id="sp-unassigned-count"></span> transactions are unclassified and excluded from this analysis.
+</div>
+<div id="sp-low-data-warning" class="alert alert-info d-none">
+  <i class="bi bi-info-circle me-1"></i>
+  Analysis works best with 2+ months of data. Results based on <span id="sp-month-count"></span> month.
+</div>
+
+<!-- Time range selector -->
+<div class="d-flex justify-content-end mb-3">
+  <div class="btn-group" role="group" aria-label="Time range">
+    <button type="button" class="btn btn-outline-primary btn-sm sp-range" data-months="3">3M</button>
+    <button type="button" class="btn btn-outline-primary btn-sm sp-range active" data-months="6">6M</button>
+    <button type="button" class="btn btn-outline-primary btn-sm sp-range" data-months="12">12M</button>
+  </div>
+</div>
+
+<!-- Section 1: Summary Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-md-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Avg Monthly Income</div>
+        <div class="fw-bold fs-4" id="card-avg-income">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Avg Fixed Expenses</div>
+        <div class="fw-bold fs-4" id="card-avg-fixed">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Avg Variable Expenses</div>
+        <div class="fw-bold fs-4" id="card-avg-variable">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Savings Rate</div>
+        <div class="fw-bold fs-4" id="card-savings-rate">—</div>
+        <div class="text-muted small" id="card-savings-subtitle"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Section 2: Charts -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="card-title fw-semibold mb-3">Category Expense Breakdown</h6>
+        <div id="donut-chart"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="card-title fw-semibold mb-3">Monthly Breakdown</h6>
+        <div id="area-chart"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Section 3: Savings Simulator -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body">
+    <h6 class="card-title fw-semibold mb-3">Savings Simulator</h6>
+    <div class="row align-items-center mb-3">
+      <div class="col-md-8">
+        <label for="sim-slider" class="form-label">Monthly Savings Target</label>
+        <input type="range" class="form-range" id="sim-slider" min="0" max="1000" step="50" value="0">
+      </div>
+      <div class="col-md-4">
+        <div class="input-group">
+          <span class="input-group-text">$</span>
+          <input type="number" class="form-control" id="sim-input" min="0" max="1000" step="50" value="0">
+        </div>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-sm-6">
+        <div class="card h-100">
+          <div class="card-body text-center">
+            <div class="text-muted small mb-1">Cut Needed</div>
+            <div class="fw-bold fs-4" id="sim-cut-needed">$0</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6">
+        <div class="card h-100">
+          <div class="card-body text-center">
+            <div class="text-muted small mb-1">Feasibility</div>
+            <div class="fs-5" id="sim-feasibility">
+              <span class="badge bg-success">On Track</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Section 4: Category Cut Analysis -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="card-title fw-semibold mb-3">Category Cut Analysis</h6>
+        <div class="table-responsive">
+          <table class="table table-sm" id="cut-table">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th class="text-end">Avg Spend</th>
+                <th class="text-end">Historical Min</th>
+                <th class="text-end">Cut Potential</th>
+                <th class="text-end">Suggested Cut</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="card-title fw-semibold mb-3">Cut Potential by Category</h6>
+        <div id="bar-chart"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@5/dist/apexcharts.min.js"></script>
+<script>
+'use strict';
+
+const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmtDec = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+let data = null;
+let donutChart = null;
+let areaChart = null;
+let barChart = null;
+let fetchController = null;
+
+function loadData(months) {
+  if (fetchController) fetchController.abort();
+  fetchController = new AbortController();
+
+  document.getElementById('sp-loading').classList.remove('d-none');
+  document.getElementById('sp-content').classList.add('d-none');
+  document.getElementById('sp-empty').classList.add('d-none');
+
+  fetch(`/api/savings-planner/overview/?months=${months}`, { signal: fetchController.signal })
+    .then(r => r.json())
+    .then(d => {
+      data = d;
+      fetchController = null;
+      render();
+    })
+    .catch(e => {
+      if (e.name !== 'AbortError') console.error(e);
+    });
+}
+
+function render() {
+  const loading = document.getElementById('sp-loading');
+  const content = document.getElementById('sp-content');
+  const empty = document.getElementById('sp-empty');
+
+  loading.classList.add('d-none');
+
+  const hasData = data.months.length > 0 && Object.values(data.averages).some(v => v !== 0);
+  if (!hasData) {
+    empty.classList.remove('d-none');
+    content.classList.add('d-none');
+    return;
+  }
+
+  empty.classList.add('d-none');
+  content.classList.remove('d-none');
+
+  renderWarnings();
+  renderCards();
+  renderDonutChart();
+  renderAreaChart();
+  initSimulator();
+  renderCutTable();
+  renderBarChart();
+}
+
+function renderWarnings() {
+  const unassignedEl = document.getElementById('sp-unassigned-warning');
+  if (data.unassigned_count > 0) {
+    document.getElementById('sp-unassigned-count').textContent = data.unassigned_count;
+    unassignedEl.classList.remove('d-none');
+  } else {
+    unassignedEl.classList.add('d-none');
+  }
+
+  const lowDataEl = document.getElementById('sp-low-data-warning');
+  if (data.months.length < 2) {
+    document.getElementById('sp-month-count').textContent = data.months.length;
+    lowDataEl.classList.remove('d-none');
+  } else {
+    lowDataEl.classList.add('d-none');
+  }
+}
+
+function renderCards() {
+  document.getElementById('card-avg-income').textContent = fmt.format(data.averages.income);
+  document.getElementById('card-avg-fixed').textContent = fmt.format(data.averages.fixed);
+  document.getElementById('card-avg-variable').textContent = fmt.format(data.averages.variable);
+  document.getElementById('card-savings-rate').textContent = data.savings_rate.toFixed(1) + '%';
+
+  const sb = data.savings_breakdown;
+  document.getElementById('card-savings-subtitle').textContent =
+    fmtDec.format(sb.explicit_transfers) + ' explicit transfers + ' + fmtDec.format(sb.unallocated) + ' unallocated';
+}
+
+function renderDonutChart() {
+  const expenseStats = data.category_stats.filter(c => c.expense_type !== 'income');
+  const labels = expenseStats.map(c => c.category_name);
+  const series = expenseStats.map(c => c.avg_spend);
+
+  const options = {
+    chart: { type: 'donut', height: 350 },
+    series: series,
+    labels: labels,
+    legend: { position: 'bottom' },
+    tooltip: {
+      y: { formatter: v => fmt.format(v) }
+    }
+  };
+
+  if (donutChart) donutChart.destroy();
+  donutChart = new ApexCharts(document.getElementById('donut-chart'), options);
+  donutChart.render();
+}
+
+function renderAreaChart() {
+  const seriesData = [
+    { name: 'Fixed', data: data.monthly.fixed, color: '#0d6efd' },
+    { name: 'Variable', data: data.monthly.variable, color: '#fd7e14' },
+    { name: 'Savings Transfer', data: data.monthly.savings_transfer, color: '#198754' },
+    { name: 'Unallocated', data: data.monthly.savings, color: '#20c997' }
+  ];
+
+  const options = {
+    chart: { type: 'area', height: 350, stacked: true },
+    series: seriesData.map(s => ({ name: s.name, data: s.data })),
+    colors: seriesData.map(s => s.color),
+    xaxis: { categories: data.months },
+    yaxis: {
+      labels: { formatter: v => fmt.format(v) }
+    },
+    tooltip: {
+      y: { formatter: v => fmt.format(v) }
+    },
+    dataLabels: { enabled: false },
+    stroke: { curve: 'smooth', width: 2 },
+    fill: { type: 'gradient', gradient: { opacityFrom: 0.5, opacityTo: 0.1 } }
+  };
+
+  if (areaChart) areaChart.destroy();
+  areaChart = new ApexCharts(document.getElementById('area-chart'), options);
+  areaChart.render();
+}
+
+function initSimulator() {
+  const slider = document.getElementById('sim-slider');
+  const input = document.getElementById('sim-input');
+  const avgIncome = data.averages.income;
+  const currentSavings = Math.max(0, Math.round(avgIncome - data.averages.fixed - data.averages.variable));
+
+  slider.max = Math.round(avgIncome);
+  input.max = Math.round(avgIncome);
+  slider.value = currentSavings;
+  input.value = currentSavings;
+
+  slider.oninput = () => { input.value = slider.value; runSimulation(); };
+  input.oninput = () => { slider.value = input.value; runSimulation(); };
+
+  runSimulation();
+}
+
+function runSimulation() {
+  const target = parseFloat(document.getElementById('sim-slider').value) || 0;
+  const avgIncome = data.averages.income;
+  const avgFixed = data.averages.fixed;
+  const avgVariable = data.averages.variable;
+
+  const cutNeeded = (avgFixed + avgVariable) - (avgIncome - target);
+  const variableStats = data.category_stats.filter(c => c.expense_type === 'variable');
+  const totalCutPotential = variableStats.reduce((s, c) => s + c.cut_potential, 0);
+
+  let tier, tierClass;
+  if (cutNeeded <= 0) {
+    tier = 'On Track'; tierClass = 'bg-success';
+  } else if (cutNeeded <= totalCutPotential) {
+    tier = 'Achievable'; tierClass = 'bg-warning text-dark';
+  } else if (cutNeeded < avgVariable) {
+    tier = 'Aggressive'; tierClass = 'bg-orange';
+  } else {
+    tier = 'Impossible'; tierClass = 'bg-danger';
+  }
+
+  document.getElementById('sim-cut-needed').textContent = fmt.format(Math.max(0, cutNeeded));
+  document.getElementById('sim-feasibility').innerHTML =
+    `<span class="badge ${tierClass}">${tier}</span>`;
+
+  updateCutTableSuggestions(cutNeeded, totalCutPotential, variableStats);
+}
+
+function renderCutTable() {
+  const variableStats = data.category_stats
+    .filter(c => c.expense_type === 'variable')
+    .sort((a, b) => b.cut_potential - a.cut_potential);
+
+  const tbody = document.querySelector('#cut-table tbody');
+  tbody.innerHTML = variableStats.map(c =>
+    `<tr>
+      <td>${c.category_name}</td>
+      <td class="text-end">${fmtDec.format(c.avg_spend)}</td>
+      <td class="text-end">${fmtDec.format(c.min_spend)}</td>
+      <td class="text-end">${fmtDec.format(c.cut_potential)}</td>
+      <td class="text-end suggested-cut" data-category="${c.category_name}">—</td>
+    </tr>`
+  ).join('');
+}
+
+function updateCutTableSuggestions(cutNeeded, totalCutPotential, variableStats) {
+  variableStats.forEach(c => {
+    const cell = document.querySelector(`.suggested-cut[data-category="${CSS.escape(c.category_name)}"]`);
+    if (!cell) return;
+
+    let suggestedCut = 0;
+    if (cutNeeded > 0 && totalCutPotential > 0) {
+      suggestedCut = Math.min(c.cut_potential, (c.cut_potential / totalCutPotential) * cutNeeded);
+    }
+    cell.textContent = suggestedCut > 0 ? fmtDec.format(suggestedCut) : '—';
+  });
+}
+
+function renderBarChart() {
+  const variableStats = data.category_stats
+    .filter(c => c.expense_type === 'variable' && c.cut_potential > 0)
+    .sort((a, b) => b.cut_potential - a.cut_potential);
+
+  const options = {
+    chart: { type: 'bar', height: Math.max(200, variableStats.length * 40) },
+    series: [{ name: 'Cut Potential', data: variableStats.map(c => c.cut_potential) }],
+    plotOptions: { bar: { horizontal: true, barHeight: '60%' } },
+    xaxis: {
+      labels: { formatter: v => fmt.format(v) }
+    },
+    yaxis: { labels: { style: { fontSize: '12px' } } },
+    labels: variableStats.map(c => c.category_name),
+    tooltip: {
+      y: { formatter: v => fmtDec.format(v) }
+    },
+    colors: ['#0d6efd'],
+    dataLabels: { enabled: false }
+  };
+
+  if (barChart) barChart.destroy();
+  barChart = new ApexCharts(document.getElementById('bar-chart'), options);
+  barChart.render();
+}
+
+// Time range buttons
+document.querySelectorAll('.sp-range').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.sp-range').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    loadData(this.dataset.months);
+  });
+});
+
+// Initial load (6M default)
+loadData(6);
+</script>
+
+<style>
+  .bg-orange { background-color: #fd7e14; color: #fff; }
+</style>
+{% endblock %}
