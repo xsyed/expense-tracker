@@ -280,6 +280,9 @@ def csv_mapper_match_profiles(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"profiles": []})
     headers_hash = _compute_headers_hash(headers)
     profiles = CsvMappingProfile.objects.filter(user=request.user, headers_hash=headers_hash).select_related("account")
+    account_id: int | None = body.get("account_id")
+    if account_id:
+        profiles = profiles.filter(account_id=account_id)
     return JsonResponse(
         {
             "profiles": [
