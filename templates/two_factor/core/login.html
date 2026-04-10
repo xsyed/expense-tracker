@@ -20,10 +20,18 @@
     <p class="text-muted small mb-3">Enter one of your backup recovery codes to sign in.</p>
   {% endif %}
 
+  {% if show_captcha %}
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  {% endif %}
+
   <form action="" method="post" novalidate>
     {% csrf_token %}
     {{ wizard.management_form }}
     {{ wizard.form|crispy }}
+
+    {% if show_captcha %}
+      <div class="cf-turnstile mb-3" data-sitekey="{{ turnstile_site_key }}"></div>
+    {% endif %}
 
     <div class="d-grid mt-3">
       <button type="submit" class="btn btn-primary btn-lg">

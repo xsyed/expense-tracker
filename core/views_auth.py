@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+from axes.helpers import get_client_ip_address
+from axes.models import AccessAttempt
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
+from django.forms.utils import ErrorDict
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views import View
-from two_factor.views import SetupView
+from two_factor.views import LoginView, SetupView
 
 from .forms import SignUpForm
 from .models import ExpenseMonth
+from .turnstile import verify_turnstile
 
 
 class CustomSetupView(SetupView):  # type: ignore[misc]
@@ -25,6 +30,44 @@ class CustomDisableView(View):
     def post(self, request: HttpRequest) -> HttpResponse:
         messages.error(request, "Two-factor authentication is required and cannot be disabled.")
         return redirect(reverse("two_factor:profile"))
+
+
+class CustomLoginView(LoginView):  # type: ignore[misc]
+    def _should_show_captcha(self) -> bool:
+        ip = get_client_ip_address(self.request)
+        if not ip:
+            return False
+        return bool(
+            AccessAttempt.objects.filter(
+                ip_address=ip,
+                failures_since_start__gte=settings.CAPTCHA_FAILURE_THRESHOLD,
+            ).exists()
+        )
+
+    def get_context_data(self, form: object, **kwargs: object) -> dict[str, object]:
+        context: dict[str, object] = super().get_context_data(form, **kwargs)
+        if self.steps.current == self.AUTH_STEP and self._should_show_captcha():
+            context["show_captcha"] = True
+            context["turnstile_site_key"] = settings.TURNSTILE_SITE_KEY
+        return context
+
+    def post(self, *args: object, **kwargs: object) -> HttpResponse:
+        is_auth_submission = (
+            self.steps.current == self.AUTH_STEP
+            and "wizard_goto_step" not in self.request.POST
+            and "challenge_device" not in self.request.POST
+        )
+        if is_auth_submission and self._should_show_captcha():
+            token = self.request.POST.get("cf-turnstile-response", "")
+            ip = get_client_ip_address(self.request) or ""
+            if not verify_turnstile(token, ip):
+                form = self.get_form(data=self.request.POST, files=self.request.FILES)
+                form._errors = ErrorDict()
+                form.add_error(None, "CAPTCHA verification failed. Please try again.")
+                response: HttpResponse = self.render(form)
+                return response
+        response = super().post(*args, **kwargs)
+        return response
 
 
 def signup_view(request: HttpRequest) -> HttpResponse:
