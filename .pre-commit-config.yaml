@@ -21,6 +21,8 @@ repos:
           - django-two-factor-auth
           - django-otp
           - qrcode
+          - django-axes
+          - django-ipware
         args: [--config-file=pyproject.toml]
   - repo: local
     hooks:

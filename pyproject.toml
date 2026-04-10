@@ -21,7 +21,7 @@ module = "core.tests"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = ["two_factor.*", "django_otp.*", "qrcode.*", "formtools.*"]
+module = ["two_factor.*", "django_otp.*", "qrcode.*", "formtools.*", "axes.*", "ipware.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

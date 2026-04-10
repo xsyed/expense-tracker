@@ -1,0 +1,15 @@
+{% extends "auth_base.html" %}
+
+{% block title %}Account Locked{% endblock %}
+
+{% block card_title %}Account Locked{% endblock %}
+
+{% block content %}
+<div class="text-center">
+  <p class="text-danger fw-semibold mb-3">
+    <i class="bi bi-shield-lock"></i> Too many failed login attempts.
+  </p>
+  <p class="text-muted">Please try again in 30 minutes.</p>
+  <a href="{% url 'two_factor:login' %}" class="btn btn-outline-primary mt-2">Back to login</a>
+</div>
+{% endblock %}
