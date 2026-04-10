@@ -51,5 +51,5 @@ def logout_view(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def home_view(request: HttpRequest) -> HttpResponse:
-    expense_months = ExpenseMonth.objects.filter(user=request.user)
+    expense_months = ExpenseMonth.objects.filter(user=request.user).order_by("-month")
     return render(request, "home.html", {"expense_months": expense_months})
