@@ -16,11 +16,11 @@ User = get_user_model()
 
 
 class AuthRedirectTests(TestCase):
-    """AC 1: Unauthenticated user on / redirects to /auth/login/"""
+    """AC 1: Unauthenticated user on / redirects to /account/login/"""
 
     def test_root_redirects_unauthenticated_to_login(self):
         response = self.client.get("/")
-        self.assertRedirects(response, "/auth/login/?next=/", fetch_redirect_response=False)
+        self.assertRedirects(response, "/account/login/?next=/", fetch_redirect_response=False)
 
 
 class SignUpTests(TestCase):
@@ -73,7 +73,7 @@ class SignUpTests(TestCase):
 
 
 class LoginTests(TestCase):
-    """AC 5-6: Login flow"""
+    """AC 5-6: Login flow via two_factor wizard"""
 
     def setUp(self):
         self.user = User.objects.create_user(email="user@example.com", password="CorrectPass123!")
@@ -81,49 +81,53 @@ class LoginTests(TestCase):
     def test_valid_login_redirects_to_home(self):
         """AC 5"""
         response = self.client.post(
-            "/auth/login/",
+            "/account/login/",
             {
-                "email": "user@example.com",
-                "password": "CorrectPass123!",
+                "auth-username": "user@example.com",
+                "auth-password": "CorrectPass123!",
+                "login_view-current_step": "auth",
             },
         )
         self.assertRedirects(response, "/", fetch_redirect_response=False)
 
     def test_login_does_not_duplicate_default_categories(self):
         response = self.client.post(
-            "/auth/login/",
+            "/account/login/",
             {
-                "email": "user@example.com",
-                "password": "CorrectPass123!",
+                "auth-username": "user@example.com",
+                "auth-password": "CorrectPass123!",
+                "login_view-current_step": "auth",
             },
         )
 
         self.assertRedirects(response, "/", fetch_redirect_response=False)
         self.assertEqual(self.user.categories.count(), len(DEFAULT_CATEGORIES))
 
-    def test_wrong_password_shows_generic_error(self):
+    def test_wrong_password_shows_error(self):
         """AC 6"""
         response = self.client.post(
-            "/auth/login/",
+            "/account/login/",
             {
-                "email": "user@example.com",
-                "password": "WrongPassword!",
+                "auth-username": "user@example.com",
+                "auth-password": "WrongPassword!",
+                "login_view-current_step": "auth",
             },
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Invalid email or password")
+        self.assertContains(response, "Please enter a correct")
 
-    def test_unknown_email_shows_generic_error(self):
-        """AC 6 — unknown email must not reveal which field is wrong"""
+    def test_unknown_email_shows_error(self):
+        """AC 6 — unknown email"""
         response = self.client.post(
-            "/auth/login/",
+            "/account/login/",
             {
-                "email": "nobody@example.com",
-                "password": "SomePass123!",
+                "auth-username": "nobody@example.com",
+                "auth-password": "SomePass123!",
+                "login_view-current_step": "auth",
             },
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Invalid email or password")
+        self.assertContains(response, "Please enter a correct")
 
 
 class LogoutTests(TestCase):
@@ -136,13 +140,13 @@ class LogoutTests(TestCase):
     def test_post_logout_redirects_to_login(self):
         """AC 7"""
         response = self.client.post("/auth/logout/")
-        self.assertRedirects(response, "/auth/login/", fetch_redirect_response=False)
+        self.assertRedirects(response, "/account/login/", fetch_redirect_response=False)
 
     def test_after_logout_protected_url_redirects_to_login(self):
         """AC 8"""
         self.client.post("/auth/logout/")
         response = self.client.get("/")
-        self.assertRedirects(response, "/auth/login/?next=/", fetch_redirect_response=False)
+        self.assertRedirects(response, "/account/login/?next=/", fetch_redirect_response=False)
 
 
 class TemplateRenderTests(TestCase):
@@ -156,7 +160,7 @@ class TemplateRenderTests(TestCase):
 
     def test_login_page_has_bootstrap(self):
         """AC 9 — login renders with Bootstrap"""
-        response = self.client.get("/auth/login/")
+        response = self.client.get("/account/login/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "bootstrap")
 

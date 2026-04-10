@@ -5,9 +5,8 @@ from decimal import Decimal
 from typing import Any, cast
 
 from django import forms
-from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from django.http import HttpRequest
 
 from .models import Account, Category, CategoryBudget, ExpenseMonth, Goal, GoalContribution
 from .models import User as UserModel
@@ -52,36 +51,6 @@ class SignUpForm(forms.Form):
         email = self.cleaned_data["email"]
         password = self.cleaned_data["password1"]
         return User.objects.create_user(email, password)
-
-
-class LoginForm(forms.Form):
-    email = forms.EmailField(
-        widget=forms.EmailInput(attrs={"autofocus": True, "placeholder": "you@example.com"}),
-    )
-    password = forms.CharField(
-        widget=forms.PasswordInput(attrs={"placeholder": "Password"}),
-    )
-
-    def __init__(self, *args: Any, request: HttpRequest | None = None, **kwargs: Any) -> None:
-        self.request = request
-        self._user: UserModel | None = None
-        super().__init__(*args, **kwargs)
-
-    def clean(self) -> dict[str, Any]:
-        cleaned_data: dict[str, Any] = super().clean() or {}
-        email: str = cleaned_data.get("email") or ""
-        email = email.lower()
-        password = cleaned_data.get("password")
-        if email and password:
-            self._user = authenticate(self.request, username=email, password=password)
-            if self._user is None:
-                raise forms.ValidationError("Invalid email or password.")
-            if not self._user.is_active:
-                raise forms.ValidationError("This account has been disabled.")
-        return cleaned_data
-
-    def get_user(self) -> UserModel | None:
-        return self._user
 
 
 class CategoryForm(forms.ModelForm[Category]):

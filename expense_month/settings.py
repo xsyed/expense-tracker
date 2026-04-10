@@ -24,6 +24,10 @@ INSTALLED_APPS = [
     "crispy_forms",
     "crispy_bootstrap5",
     "core",
+    "django_otp",
+    "django_otp.plugins.otp_static",
+    "django_otp.plugins.otp_totp",
+    "two_factor",
 ]
 
 MIDDLEWARE = [
@@ -32,6 +36,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django_otp.middleware.OTPMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -85,9 +90,14 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = "core.User"
-LOGIN_URL = "/auth/login/"
+LOGIN_URL = "two_factor:login"
 LOGIN_REDIRECT_URL = "/"
-LOGOUT_REDIRECT_URL = "/auth/login/"
+LOGOUT_REDIRECT_URL = "two_factor:login"
+
+TWO_FACTOR_REMEMBER_COOKIE_AGE = 60 * 60 * 24 * 30
+TWO_FACTOR_REMEMBER_COOKIE_SECURE = True
+TWO_FACTOR_REMEMBER_COOKIE_SAMESITE = "Lax"
+TWO_FACTOR_PATCH_ADMIN = True
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"

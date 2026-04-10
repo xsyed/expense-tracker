@@ -1,0 +1,16 @@
+{% extends "auth_base.html" %}
+
+{% block title %}2FA Enabled — Expense Tracker{% endblock %}
+{% block card_title %}Two-factor authentication enabled{% endblock %}
+
+{% block content %}
+  <div class="text-center mb-3">
+    <i class="bi bi-shield-check text-success" style="font-size: 3rem;"></i>
+  </div>
+  <p class="text-center text-muted">
+    Your account is now protected with two-factor authentication.
+  </p>
+  <div class="d-grid mt-3">
+    <a href="{% url 'two_factor:profile' %}" class="btn btn-primary">Back to Account Security</a>
+  </div>
+{% endblock %}

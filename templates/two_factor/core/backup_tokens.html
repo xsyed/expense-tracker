@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Backup Tokens — Expense Tracker{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <h3 class="mb-3"><i class="bi bi-key me-2"></i>Backup Recovery Codes</h3>
+    <p class="text-muted">
+      Use these codes to sign in if you lose access to your authenticator app.
+      Each code can only be used once.
+    </p>
+
+    {% if device.token_set.count %}
+      <div class="bg-light border rounded p-3 mb-3">
+        <ul class="list-unstyled mb-0 font-monospace">
+          {% for token in device.token_set.all %}
+            <li class="py-1">{{ token.token }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <p class="text-muted small">Print or save these codes in a secure location.</p>
+    {% else %}
+      <div class="alert alert-warning">You don't have any backup codes yet. Generate a new set below.</div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      {{ form|crispy }}
+      <div class="d-flex justify-content-between mt-3">
+        <a href="{% url 'two_factor:profile' %}" class="btn btn-outline-secondary">Back to Security</a>
+        <button class="btn btn-primary" type="submit">Generate Tokens</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

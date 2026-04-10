@@ -18,6 +18,9 @@ repos:
           - crispy-bootstrap5
           - pandas-stubs
           - defusedcsv
+          - django-two-factor-auth
+          - django-otp
+          - qrcode
         args: [--config-file=pyproject.toml]
   - repo: local
     hooks:

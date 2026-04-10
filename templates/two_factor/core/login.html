@@ -1,0 +1,62 @@
+{% extends "auth_base.html" %}
+{% load crispy_forms_tags two_factor_tags %}
+
+{% block title %}Sign In — Expense Tracker{% endblock %}
+
+{% block card_title %}
+  {% if wizard.steps.current == 'auth' %}
+    Sign in to your account
+  {% elif wizard.steps.current == 'token' %}
+    Two-factor authentication
+  {% elif wizard.steps.current == 'backup' %}
+    Backup token
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  {% if wizard.steps.current == 'token' %}
+    <p class="text-muted small mb-3">{{ device|as_verbose_action }}</p>
+  {% elif wizard.steps.current == 'backup' %}
+    <p class="text-muted small mb-3">Enter one of your backup recovery codes to sign in.</p>
+  {% endif %}
+
+  <form action="" method="post" novalidate>
+    {% csrf_token %}
+    {{ wizard.management_form }}
+    {{ wizard.form|crispy }}
+
+    <div class="d-grid mt-3">
+      <button type="submit" class="btn btn-primary btn-lg">
+        {% if wizard.steps.current == 'auth' %}Sign In{% else %}Verify{% endif %}
+      </button>
+    </div>
+
+    {% if other_devices %}
+      <hr>
+      <p class="text-muted small">Use another authentication method:</p>
+      {% for other in other_devices %}
+        <button name="challenge_device" value="{{ other.persistent_id }}"
+                class="btn btn-outline-secondary btn-sm w-100 mb-2" type="submit">
+          {{ other|as_action }}
+        </button>
+      {% endfor %}
+    {% endif %}
+
+    {% if backup_tokens %}
+      <hr>
+      <form action="" method="post">
+        {% csrf_token %}
+        {{ wizard.management_form }}
+        <button name="wizard_goto_step" type="submit" value="backup"
+                class="btn btn-link btn-sm p-0">Use a backup token</button>
+      </form>
+    {% endif %}
+  </form>
+
+  {% if wizard.steps.current == 'auth' %}
+    <hr>
+    <p class="text-center text-muted mb-0">
+      Don't have an account? <a href="{% url 'signup' %}">Sign up</a>
+    </p>
+  {% endif %}
+{% endblock %}

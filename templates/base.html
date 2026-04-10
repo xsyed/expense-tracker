@@ -61,6 +61,11 @@
             </a>
           </li>
           <li class="nav-item">
+            <a class="nav-link {% if '/account/two_factor/' in request.path %}active{% endif %}" href="{% url 'two_factor:profile' %}">
+              <i class="bi bi-shield-lock me-1"></i>Security
+            </a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link" href="{% url 'month_create' %}"
               data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="New Month">
               <i class="bi bi-plus-circle"></i>

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% load two_factor_tags %}
+
+{% block title %}Security — Expense Tracker{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <h3 class="mb-3"><i class="bi bi-shield-lock me-2"></i>Account Security</h3>
+
+    {% if default_device %}
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Two-Factor Authentication</h5>
+          <p class="card-text">
+            <span class="badge bg-success">Enabled</span>
+          </p>
+          <p class="card-text text-muted">
+            Primary method: {{ default_device|as_action }}
+          </p>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Backup Recovery Codes</h5>
+          <p class="card-text text-muted">
+            {% if backup_tokens %}
+              You have {{ backup_tokens }} backup token{{ backup_tokens|pluralize }} remaining.
+            {% else %}
+              No backup tokens generated yet.
+            {% endif %}
+          </p>
+          <a href="{% url 'two_factor:backup_tokens' %}" class="btn btn-sm btn-outline-primary">Show Codes</a>
+        </div>
+      </div>
+
+      <div class="card border-danger">
+        <div class="card-body">
+          <h5 class="card-title text-danger">Disable Two-Factor Authentication</h5>
+          <p class="card-text text-muted">This will reduce your account security.</p>
+          <a href="{% url 'two_factor:disable' %}" class="btn btn-sm btn-outline-danger">Disable 2FA</a>
+        </div>
+      </div>
+    {% else %}
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Two-Factor Authentication</h5>
+          <p class="card-text">
+            <span class="badge bg-warning text-dark">Not Enabled</span>
+          </p>
+          <p class="card-text text-muted">
+            Protect your account by enabling two-factor authentication.
+          </p>
+          <a href="{% url 'two_factor:setup' %}" class="btn btn-primary">Enable 2FA</a>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
