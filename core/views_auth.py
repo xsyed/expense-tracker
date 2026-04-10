@@ -72,7 +72,7 @@ class CustomLoginView(LoginView):  # type: ignore[misc]
 
 def signup_view(request: HttpRequest) -> HttpResponse:
     if request.user.is_authenticated:
-        return redirect("/")
+        return redirect("home")
     if request.method == "POST":
         form = SignUpForm(request.POST)
         if form.is_valid():
@@ -90,7 +90,7 @@ def logout_view(request: HttpRequest) -> HttpResponse:
         logout(request)
         messages.success(request, "You have been logged out.")
         return redirect(reverse("two_factor:login"))
-    return redirect("/")
+    return redirect("home")
 
 
 @login_required
