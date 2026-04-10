@@ -22,7 +22,7 @@ from two_factor.urls import urlpatterns as tf_urls
 
 from core.views_accounts import account_delete_view, account_edit_view, account_list_view
 from core.views_accounts_overview import accounts_overview_data_view
-from core.views_auth import home_view, logout_view, signup_view
+from core.views_auth import CustomDisableView, CustomSetupView, home_view, logout_view, signup_view
 from core.views_budgets import budget_setup_view
 from core.views_categories import category_delete_view, category_edit_view, category_list_view
 from core.views_category_trends import category_trends_data_view
@@ -68,6 +68,8 @@ admin.site.__class__ = AdminSiteOTPRequired
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("account/two_factor/setup/", CustomSetupView.as_view(), name="custom_2fa_setup"),
+    path("account/two_factor/disable/", CustomDisableView.as_view(), name="custom_2fa_disable"),
     path("", include(tf_urls)),
     path("auth/signup/", signup_view, name="signup"),
     path("auth/logout/", logout_view, name="logout"),
