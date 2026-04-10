@@ -12,6 +12,7 @@ EXEMPT_URL_NAMES = frozenset(
         "two_factor:setup",
         "two_factor:qr",
         "two_factor:login",
+        "custom_2fa_setup",
         "signup",
         "logout",
     }
