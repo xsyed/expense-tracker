@@ -9,3 +9,4 @@ django-ipware
 defusedcsv
 pandas
 gunicorn
+django-stubs-ext
