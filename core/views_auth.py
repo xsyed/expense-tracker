@@ -73,7 +73,14 @@ class CustomLoginView(LoginView):  # type: ignore[misc]
 def signup_view(request: HttpRequest) -> HttpResponse:
     if request.user.is_authenticated:
         return redirect("home")
+    context: dict[str, object] = {"turnstile_site_key": settings.TURNSTILE_SITE_KEY}
     if request.method == "POST":
+        token = request.POST.get("cf-turnstile-response", "")
+        ip = get_client_ip_address(request) or ""
+        if not verify_turnstile(token, ip):
+            form = SignUpForm(request.POST)
+            form.add_error(None, "CAPTCHA verification failed. Please try again.")
+            return render(request, "auth/signup.html", {**context, "form": form})
         form = SignUpForm(request.POST)
         if form.is_valid():
             user = form.save()
@@ -82,7 +89,7 @@ def signup_view(request: HttpRequest) -> HttpResponse:
             return redirect(reverse("two_factor:setup"))
     else:
         form = SignUpForm()
-    return render(request, "auth/signup.html", {"form": form})
+    return render(request, "auth/signup.html", {**context, "form": form})
 
 
 def logout_view(request: HttpRequest) -> HttpResponse:
