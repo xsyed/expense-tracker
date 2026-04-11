@@ -50,4 +50,4 @@ jobs:
             docker pull ghcr.io/xsyed/expense-tracker:latest
             docker compose -f docker-compose.prod.yml up -d
             sleep 15
-            curl -sf http://localhost:8000/expense-tracker/health/ || (echo "Health check failed!" && exit 1)
+            curl -sf http://localhost:8000/health/ || (echo "Health check failed!" && exit 1)
