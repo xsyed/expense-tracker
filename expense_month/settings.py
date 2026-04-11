@@ -2,18 +2,21 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
-import django_stubs_ext
+try:
+    import django_stubs_ext
+
+    django_stubs_ext.monkeypatch()
+except ImportError:
+    pass
 from django.contrib.messages import constants as message_constants
 from dotenv import load_dotenv
-
-django_stubs_ext.monkeypatch()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-fallback-key-for-dev-only")
 DEBUG = os.environ.get("DEBUG", "True") == "True"
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -68,7 +71,7 @@ WSGI_APPLICATION = "expense_month.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": Path(os.environ.get("DB_PATH", str(BASE_DIR / "db.sqlite3"))),
     }
 }
 
@@ -85,6 +88,7 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
@@ -123,3 +127,19 @@ AXES_LOCKOUT_TEMPLATE = "axes/lockout.html"
 TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "1x0000000000000000000000000000000AA")
 CAPTCHA_FAILURE_THRESHOLD = 3
+
+FORCE_SCRIPT_NAME = os.environ.get("FORCE_SCRIPT_NAME", "") or None
+if FORCE_SCRIPT_NAME:
+    STATIC_URL = f"{FORCE_SCRIPT_NAME}/static/"
+
+CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o]
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+STATIC_VERSION = os.environ.get("STATIC_VERSION", "")

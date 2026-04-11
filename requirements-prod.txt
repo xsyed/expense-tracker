@@ -1,0 +1,11 @@
+Django>=4.2,<5
+django-crispy-forms
+crispy-bootstrap5
+python-dotenv
+django-two-factor-auth>=1.18,<2
+qrcode[pil]
+django-axes>=7.0,<8.0
+django-ipware
+defusedcsv
+pandas
+gunicorn

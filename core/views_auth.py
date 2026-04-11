@@ -97,3 +97,7 @@ def logout_view(request: HttpRequest) -> HttpResponse:
 def home_view(request: HttpRequest) -> HttpResponse:
     expense_months = ExpenseMonth.objects.filter(user=request.user).order_by("-month")
     return render(request, "home.html", {"expense_months": expense_months})
+
+
+def health_check_view(request: HttpRequest) -> HttpResponse:
+    return HttpResponse("ok", status=200)

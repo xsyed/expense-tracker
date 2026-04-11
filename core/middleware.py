@@ -15,6 +15,7 @@ EXEMPT_URL_NAMES = frozenset(
         "custom_2fa_setup",
         "signup",
         "logout",
+        "health_check",
     }
 )
 

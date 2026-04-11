@@ -1,0 +1,12 @@
+.git
+.github
+.mypy_cache
+__pycache__
+*.pyc
+db.sqlite3
+.env
+node_modules
+tasks/
+.pre-commit-config.yaml
+vulture_whitelist.py
+Makefile
