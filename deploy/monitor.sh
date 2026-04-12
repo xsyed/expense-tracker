@@ -7,7 +7,19 @@ mkdir -p "$(dirname "$STATE_FILE")"
 
 STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$CONTAINER" 2>/dev/null || echo "missing")
 
+# Recovery notification if previously not healthy
 if [ "$STATUS" = "healthy" ]; then
+    if [ -f "$STATE_FILE" ]; then
+        LAST=$(cat "$STATE_FILE")
+        if [ "$LAST" != "healthy" ]; then
+            set -a
+            source /home/sami/expense-tracker/.env
+            set +a
+            python3 /home/sami/expense-tracker/deploy/send_email.py \
+                --subject "Expense Tracker RECOVERY — status: healthy" \
+                --body "Container '${CONTAINER}' has recovered at $(date)."
+        fi
+    fi
     rm -f "$STATE_FILE"
     exit 0
 fi
