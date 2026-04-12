@@ -84,7 +84,7 @@ def signup_view(request: HttpRequest) -> HttpResponse:
         form = SignUpForm(request.POST)
         if form.is_valid():
             user = form.save()
-            login(request, user)
+            login(request, user, backend="django.contrib.auth.backends.ModelBackend")
             messages.success(request, "Account created! Please set up two-factor authentication.")
             return redirect(reverse("two_factor:setup"))
     else:
