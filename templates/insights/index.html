@@ -708,7 +708,7 @@
   }
 
   function fetchBurnRateData(month) {
-    var url = '/api/insights/burn-rate/' + (month ? '?month=' + encodeURIComponent(month) : '');
+    var url = SCRIPT_PREFIX + '/api/insights/burn-rate/' + (month ? '?month=' + encodeURIComponent(month) : '');
     var chartEl = document.getElementById('burn-rate-chart');
     var emptyEl = document.getElementById('burn-rate-empty');
 
@@ -778,7 +778,7 @@
   }
 
   function fetchBudgetData(month) {
-    const url = '/api/insights/budget-data/' + (month ? '?month=' + encodeURIComponent(month) : '');
+    const url = SCRIPT_PREFIX + '/api/insights/budget-data/' + (month ? '?month=' + encodeURIComponent(month) : '');
 
     if (budgetFetchController) {
       budgetFetchController.abort();
@@ -993,7 +993,7 @@
     document.getElementById('goals-loading').classList.remove('d-none');
     document.getElementById('goals-empty').classList.add('d-none');
     document.getElementById('goals-content').classList.add('d-none');
-    fetch('/api/insights/goals-data/')
+    fetch(SCRIPT_PREFIX + '/api/insights/goals-data/')
       .then(function(r) { return r.json(); })
       .then(function(data) {
         document.getElementById('goals-loading').classList.add('d-none');
@@ -1043,7 +1043,7 @@
   }
 
   function fetchProjectionData(goalId) {
-    fetch('/api/insights/goals/' + goalId + '/projection/')
+    fetch(SCRIPT_PREFIX + '/api/insights/goals/' + goalId + '/projection/')
       .then(function(r) { return r.json(); })
       .then(function(data) { renderProjectionChart(data); })
       .catch(function(err) { console.error('Failed to fetch projection:', err); });
@@ -1170,7 +1170,7 @@
   }
 
   function fetchSpendingTrend(goalId) {
-    fetch('/api/insights/goals/' + goalId + '/spending-trend/')
+    fetch(SCRIPT_PREFIX + '/api/insights/goals/' + goalId + '/spending-trend/')
       .then(function(r) { return r.json(); })
       .then(function(data) { renderSpendingTrendChart(data); })
       .catch(function(err) { console.error('Failed to fetch spending trend:', err); });
@@ -1291,7 +1291,7 @@
     document.getElementById('recurring-loading').classList.remove('d-none');
     document.getElementById('recurring-empty').classList.add('d-none');
     document.getElementById('recurring-content').classList.add('d-none');
-    fetch('/api/insights/recurring-data/')
+    fetch(SCRIPT_PREFIX + '/api/insights/recurring-data/')
       .then(function(r) { return r.json(); })
       .then(function(data) {
         document.getElementById('recurring-loading').classList.add('d-none');
@@ -1428,7 +1428,7 @@
     document.getElementById('trends-content').classList.add('d-none');
     destroyTrendSparklines();
 
-    fetch('/api/insights/category-trends/?months=' + numMonths)
+    fetch(SCRIPT_PREFIX + '/api/insights/category-trends/?months=' + numMonths)
       .then(function(r) { return r.json(); })
       .then(function(data) {
         document.getElementById('trends-loading').classList.add('d-none');
@@ -1638,7 +1638,7 @@
     document.getElementById('accounts-empty').classList.add('d-none');
     document.getElementById('accounts-content').classList.add('d-none');
 
-    fetch('/api/insights/accounts-overview/?months=' + numMonths)
+    fetch(SCRIPT_PREFIX + '/api/insights/accounts-overview/?months=' + numMonths)
       .then(function(r) { return r.json(); })
       .then(function(data) {
         document.getElementById('accounts-loading').classList.add('d-none');
@@ -1788,7 +1788,7 @@
     document.getElementById('forecasting-empty').classList.add('d-none');
     document.getElementById('forecasting-content').classList.add('d-none');
 
-    fetch('/api/insights/forecasting/')
+    fetch(SCRIPT_PREFIX + '/api/insights/forecasting/')
       .then(function(r) { return r.json(); })
       .then(function(data) {
         document.getElementById('forecasting-loading').classList.add('d-none');

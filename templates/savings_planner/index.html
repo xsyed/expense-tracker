@@ -200,7 +200,7 @@ function loadData(months) {
   document.getElementById('sp-content').classList.add('d-none');
   document.getElementById('sp-empty').classList.add('d-none');
 
-  fetch(`/api/savings-planner/overview/?months=${months}`, { signal: fetchController.signal })
+  fetch(`${SCRIPT_PREFIX}/api/savings-planner/overview/?months=${months}`, { signal: fetchController.signal })
     .then(r => r.json())
     .then(d => {
       data = d;

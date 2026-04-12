@@ -289,7 +289,7 @@
   function refreshAllCharts() {
     var range = currentRange === 'all' ? 'all' : currentRange;
 
-    fetch('/api/charts/monthly-totals/?months=' + range)
+    fetch(SCRIPT_PREFIX + '/api/charts/monthly-totals/?months=' + range)
       .then(function (r) { return r.json(); })
       .then(function (data) { initChart1(data); initChart3(data); })
       .catch(function () {
@@ -298,7 +298,7 @@
       });
 
     var monthParam = chart2Month ? '?month=' + chart2Month : '';
-    fetch('/api/charts/category-breakdown/' + monthParam)
+    fetch(SCRIPT_PREFIX + '/api/charts/category-breakdown/' + monthParam)
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!chart2Month && data.available_months && data.available_months.length > 0) {
@@ -308,12 +308,12 @@
       })
       .catch(function () { showEmpty('chart2', 'Failed to load chart data.'); });
 
-    fetch('/api/charts/top-categories/?months=' + range + '&limit=5')
+    fetch(SCRIPT_PREFIX + '/api/charts/top-categories/?months=' + range + '&limit=5')
       .then(function (r) { return r.json(); })
       .then(function (data) { initChart4(data); })
       .catch(function () { showEmpty('chart4', 'Failed to load chart data.'); });
 
-    fetch('/api/charts/month-over-month/')
+    fetch(SCRIPT_PREFIX + '/api/charts/month-over-month/')
       .then(function (r) { return r.json(); })
       .then(function (data) { initChart5(data); })
       .catch(function () { showEmpty('chart5', 'Failed to load chart data.'); });
@@ -334,7 +334,7 @@
     if (chart2Select) {
       chart2Select.addEventListener('change', function () {
         chart2Month = this.value;
-        fetch('/api/charts/category-breakdown/?month=' + chart2Month)
+        fetch(SCRIPT_PREFIX + '/api/charts/category-breakdown/?month=' + chart2Month)
           .then(function (r) { return r.json(); })
           .then(function (data) { initChart2(data); })
           .catch(function () { showEmpty('chart2', 'Failed to load chart data.'); });

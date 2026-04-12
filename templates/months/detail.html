@@ -381,7 +381,7 @@
       payload.account_id = match ? String(match.id) : '';
     }
     try {
-      const resp = await postJSON('/months/' + monthId + '/transactions/create/', payload);
+      const resp = await postJSON(SCRIPT_PREFIX + '/months/' + monthId + '/transactions/create/', payload);
       const result = await resp.json();
       if (result.success) {
         cancelNewRow();
@@ -436,7 +436,7 @@
     bulkDeleteModal.hide();
     try {
       const resp = await postJSON(
-        '/months/' + monthId + '/transactions/bulk-delete/',
+        SCRIPT_PREFIX + '/months/' + monthId + '/transactions/bulk-delete/',
         { ids }
       );
       const data = await resp.json();
@@ -510,7 +510,7 @@
 
     try {
       const resp   = await postJSON(
-        '/months/' + monthId + '/transactions/' + txId + '/update/',
+        SCRIPT_PREFIX + '/months/' + monthId + '/transactions/' + txId + '/update/',
         { field, value }
       );
       const result = await resp.json();
@@ -613,7 +613,7 @@
         visibility[f] = col ? col.isVisible() : true;
       });
       try {
-        await postJSON('/preferences/grid/', { column_visibility: visibility });
+        await postJSON(SCRIPT_PREFIX + '/preferences/grid/', { column_visibility: visibility });
       } catch (_) {
         // Best-effort save; silently ignore network errors
       }
