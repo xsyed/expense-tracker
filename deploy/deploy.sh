@@ -8,5 +8,5 @@ cd /home/sami/expense-tracker
 docker pull "$IMAGE"
 docker compose -f docker-compose.prod.yml up -d
 sleep 15
-curl -sf http://localhost:8000/expense-tracker/health/
+curl -sf http://localhost:8000/health/
 echo "Deploy successful!"

@@ -1,15 +1,21 @@
-# 1) Create + activate virtual env
+# Expense Tracker
+
+Personal expense tracker. It features expense management, and data visualization.
+
+Demo link :- https://scorptech.ca/expense-tracker
+  
+## 1) Create + activate virtual env
 python3 -m venv .venv
 source .venv/bin/activate
 
-# 2) Install dependencies used by this project
+## 2) Install dependencies used by this project
 pip install -r requirements.txt
 
-# 3) Run migrations
+## 3) Run migrations
 python manage.py migrate
 
-# 4) Start server
+## 4) Start server
 python manage.py runserver
 
-# 5) (Optional) create admin user
+## 5) (Optional) create admin user
 python manage.py createsuperuser
