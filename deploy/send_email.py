@@ -38,7 +38,11 @@ def send_email(subject: str, body: str, attachment: str | None = None) -> None:
     req = urllib.request.Request(
         "https://api.resend.com/emails",
         data=data,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "expense-tracker-backup/1.0",
+        },
     )
 
     try:
