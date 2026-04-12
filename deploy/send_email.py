@@ -2,50 +2,57 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import json
 import os
-import smtplib
 import sys
-from email.mime.application import MIMEApplication
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import urllib.request
 from pathlib import Path
 
 
 def send_email(subject: str, body: str, attachment: str | None = None) -> None:
-    gmail_address = os.environ.get("GMAIL_ADDRESS", "")
-    gmail_password = os.environ.get("GMAIL_APP_PASSWORD", "")
+    api_key = os.environ.get("RESEND_API_KEY", "")
+    email_from = os.environ.get("RESEND_FROM", "")
     email_to = os.environ.get("BACKUP_EMAIL_TO", "")
 
-    if not all([gmail_address, gmail_password, email_to]):
-        print("ERROR: GMAIL_ADDRESS, GMAIL_APP_PASSWORD, and BACKUP_EMAIL_TO must be set", file=sys.stderr)
+    if not all([api_key, email_from, email_to]):
+        print("ERROR: RESEND_API_KEY, RESEND_FROM, and BACKUP_EMAIL_TO must be set", file=sys.stderr)
         sys.exit(1)
 
-    msg = MIMEMultipart()
-    msg["From"] = gmail_address
-    msg["To"] = email_to
-    msg["Subject"] = subject
-    msg.attach(MIMEText(body, "plain"))
+    payload: dict[str, object] = {
+        "from": email_from,
+        "to": [email_to],
+        "subject": subject,
+        "text": body,
+    }
 
     if attachment:
         path = Path(attachment)
         if not path.exists():
             print(f"ERROR: Attachment not found: {attachment}", file=sys.stderr)
             sys.exit(1)
-        with open(path, "rb") as f:
-            part = MIMEApplication(f.read(), Name=path.name)
-        part["Content-Disposition"] = f'attachment; filename="{path.name}"'
-        msg.attach(part)
+        content_b64 = base64.b64encode(path.read_bytes()).decode()
+        payload["attachments"] = [{"filename": path.name, "content": content_b64}]
 
-    with smtplib.SMTP("smtp.gmail.com", 587) as server:
-        server.starttls()
-        server.login(gmail_address, gmail_password)
-        server.sendmail(gmail_address, [email_to], msg.as_string())
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=data,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+    )
+
+    try:
+        with urllib.request.urlopen(req):  # noqa: S310
+            pass
+    except urllib.error.HTTPError as e:
+        print(f"ERROR: Resend API returned {e.code}: {e.read().decode()}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"Email sent: {subject}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Send email via Gmail SMTP")
+    parser = argparse.ArgumentParser(description="Send email via Resend API")
     parser.add_argument("--subject", required=True)
     parser.add_argument("--body", required=True)
     parser.add_argument("--attachment")
