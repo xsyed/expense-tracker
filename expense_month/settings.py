@@ -100,7 +100,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = "core.User"
 LOGIN_URL = "two_factor:login"
-LOGIN_REDIRECT_URL = "/"
+LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "two_factor:login"
 
 TWO_FACTOR_REMEMBER_COOKIE_AGE = 60 * 60 * 24 * 30

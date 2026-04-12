@@ -9,8 +9,23 @@ Personal expense tracking app. All 6 phases complete.
 - **Frontend**: Bootstrap 5 + django-crispy-forms + HTMX + Aggrid community 32
 - **Charts**: ApexCharts v5
 - **Auth**: Custom `core.User` (email-based, no username)
-- **Deployment**: Local only
+- **Deployment**: VPS (DigitalOcean) via Docker + nginx reverse proxy at subpath `/expense-tracker/`
 ---
+
+## Deployment Architecture
+
+- **Subpath**: App runs at `https://scorptech.ca/expense-tracker/` via `FORCE_SCRIPT_NAME=/expense-tracker`
+- **CI/CD**: GitHub Actions on push to `master` → quality gate → Docker build → SSH deploy to VPS
+- **Container**: `ghcr.io/xsyed/expense-tracker:latest`, gunicorn on port 8000
+- **nginx** strips `/expense-tracker/` prefix before forwarding to gunicorn
+
+### URL Rules (critical)
+- **In templates**: Always use `{% url 'name' %}` — never hardcode paths. Django handles the prefix.
+- **In JS `fetch()` calls**: Always prefix with `SCRIPT_PREFIX` global (e.g. `fetch(SCRIPT_PREFIX + '/api/...')`). `SCRIPT_PREFIX` is set in `base.html` via context processor.
+- **In Django settings**: Use named URLs (e.g. `LOGIN_REDIRECT_URL = "home"`) — never raw paths like `"/"`.
+- **In Python views**: Use `redirect("name")` or `reverse("name")` — never raw paths.
+- **Internal health checks** (Docker healthcheck, CI): Use `http://localhost:8000/health/` — no subpath prefix (gunicorn doesn't know about the prefix).
+- **nginx regex locations**: Cannot use trailing `/` in `proxy_pass`. Use `rewrite` to strip prefix instead.
 
 ## Toolchain & Quality Gate
 
