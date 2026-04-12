@@ -46,8 +46,12 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /home/sami/expense-tracker
-            [ -f ./deploy/backup.sh ] && ./deploy/backup.sh "pre-deploy" || echo "Skipping pre-deploy backup (backup.sh not found, implement Phase 5)"
+            [ -f ./deploy/backup.sh ] && ./deploy/backup.sh "pre-deploy" || echo "Skipping pre-deploy backup (backup.sh not found)"
             docker pull ghcr.io/xsyed/expense-tracker:latest
             docker compose -f docker-compose.prod.yml up -d
             sleep 15
             curl -sf http://localhost:8000/health/ || (echo "Health check failed!" && exit 1)
+            rm -rf ./deploy
+            docker cp expense-tracker-web:/app/deploy ./deploy
+            chmod +x ./deploy/*.sh
+            mkdir -p backups
