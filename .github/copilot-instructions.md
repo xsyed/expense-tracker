@@ -27,6 +27,12 @@ Personal expense tracking app. All 6 phases complete.
 - **Internal health checks** (Docker healthcheck, CI): Use `http://localhost:8000/health/` — no subpath prefix (gunicorn doesn't know about the prefix).
 - **nginx regex locations**: Cannot use trailing `/` in `proxy_pass`. Use `rewrite` to strip prefix instead.
 
+### nginx Config Rules (critical)
+- **Active config**: `/etc/nginx/sites-available/scorptech.ca` (symlinked from `sites-enabled`). Local repo: `deploy/nginx/scorptech.ca`.
+- **CI/CD does NOT auto-update nginx**. After changing `deploy/nginx/scorptech.ca`, remind user to manually run on VPS: `sudo cp ~/expense-tracker/deploy/nginx/scorptech.ca /etc/nginx/sites-available/scorptech.ca && sudo nginx -t && sudo systemctl reload nginx`.
+- **Always verify** response headers after reload: `curl -sI https://scorptech.ca/expense-tracker/ | grep <header>`.
+- **CSP changes**: Test every page that uses affected resources. CDN libraries (AG Grid, Bootstrap) may use `data:` URIs for fonts/images.
+
 ## Toolchain & Quality Gate
 
 Every quality check runs through `make check`:
