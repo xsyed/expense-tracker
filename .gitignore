@@ -30,7 +30,6 @@ db.sqlite3
 # Django media & static (collected)
 media/
 staticfiles/
-/static/  
 
 # Django local settings override
 local_settings.py
