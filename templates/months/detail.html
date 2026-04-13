@@ -89,64 +89,19 @@
 
   </div>
 
-  <!-- Right — 25%: Upload -->
+  <!-- Right — 25%: Actions -->
   <div class="col-12 col-lg-3">
     <div class="card">
       <div class="card-header">
-        <h6 class="mb-0"><i class="bi bi-cloud-upload me-2"></i>Upload CSV</h6>
+        <h6 class="mb-0"><i class="bi bi-cloud-upload me-2"></i>Import CSV</h6>
       </div>
       <div class="card-body">
-        <form id="csv-upload-form" method="post" enctype="multipart/form-data" action="{% url 'csv_upload' expense_month.pk %}">
-          {% csrf_token %}
-          <div class="d-flex gap-2 align-items-center">
-            <input id="csv-file-input" type="file" name="csv_file" accept=".csv" multiple required class="d-none">
-            <div class="d-flex align-items-center gap-1">
-              <button type="button" class="btn btn-outline-secondary text-nowrap" onclick="document.getElementById('csv-file-input').click()">
-                <i class="bi bi-folder2-open me-1"></i><span id="csv-file-label">Choose Files</span>
-              </button>
-              <button id="csv-clear-btn" type="button" class="btn btn-outline-secondary d-none" aria-label="Clear selected files">
-                <i class="bi bi-x-lg"></i>
-              </button>
-            </div>
-            <button type="submit" class="btn btn-primary text-nowrap">
-              <i class="bi bi-upload me-1"></i>Upload
-            </button>
-          </div>
-        </form>
-
-        <div class="mt-2 text-center">
-          <a href="{% url 'csv_mapper' %}" class="small text-muted">
-            <i class="bi bi-arrow-left-right me-1"></i>Map &amp; import any CSV format
-          </a>
-        </div>
-
-        {% with uploads=expense_month.csv_uploads.all %}
-        {% if uploads %}
-        <div class="mt-3">
-          <p class="text-muted small mb-2">Upload history</p>
-          <div style="overflow-x: auto;">
-          <table class="table table-sm table-bordered mb-0" style="min-width: max-content;">
-            <thead class="table-light">
-              <tr>
-                <th>Filename</th>
-                <th>Rows</th>
-                <th>Uploaded</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for upload in uploads %}{% if upload.row_count %}
-              <tr>
-                <td class="text-truncate" style="max-width: 220px;">{{ upload.filename }}</td>
-                <td>{{ upload.row_count }}</td>
-                <td class="text-muted small text-nowrap">{{ upload.uploaded_at|date:"M j, Y g:i a" }}</td>
-              </tr>
-              {% endif %}{% endfor %}
-            </tbody>
-          </table>
-          </div>
-        </div>
-        {% endif %}
-        {% endwith %}
+        <p class="text-muted small mb-3">
+          Map columns from any CSV format, preview the import, and bring transactions into your months.
+        </p>
+        <a href="{% url 'csv_mapper' %}" class="btn btn-primary w-100">
+          <i class="bi bi-cloud-upload me-1"></i>Import CSV
+        </a>
       </div>
     </div>
 
@@ -176,35 +131,6 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
         <button type="button" class="btn btn-danger" id="bulk-delete-confirm-btn">Delete</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- CSV Upload Confirm Modal -->
-<div class="modal fade" id="csvUploadModal" tabindex="-1" aria-labelledby="csvUploadModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="csvUploadModalLabel"><i class="bi bi-cloud-upload me-2"></i>Confirm CSV Upload</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <p class="text-muted small mb-2">The following file(s) will be uploaded:</p>
-        <table class="table table-sm table-bordered mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>File</th>
-              <th class="text-end">Rows</th>
-            </tr>
-          </thead>
-          <tbody id="csv-upload-preview-body"></tbody>
-        </table>
-        <p class="text-muted small mt-2 mb-0">Rows outside {{ expense_month.label }} will be skipped.</p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="csv-upload-confirm-btn"><i class="bi bi-upload me-1"></i>Upload</button>
       </div>
     </div>
   </div>
@@ -858,7 +784,7 @@
       onCellValueChanged: onCellValueChanged,
       onSelectionChanged: onSelectionChanged,
       overlayNoRowsTemplate:
-        '<span class="text-muted">No transactions yet — upload a CSV above.</span>',
+        '<span class="text-muted">No transactions yet — use Import CSV to add some.</span>',
       defaultColDef: {
         sortable: true,
         resizable: true,
@@ -870,76 +796,6 @@
   // Apply saved column visibility
   Object.entries(columnVisibilityPrefs).forEach(([field, visible]) => {
     gridApi.setColumnsVisible([field], visible);
-  });
-
-  // ── CSV Upload confirmation ───────────────────────────────────────────────
-  function escapeHtml(str) {
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  function countCsvRows(file) {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const lines = e.target.result.split('\n').filter(l => l.trim() !== '');
-        resolve(Math.max(0, lines.length - 1));
-      };
-      reader.readAsText(file);
-    });
-  }
-
-  const csvUploadForm       = document.getElementById('csv-upload-form');
-  const csvUploadModalEl    = document.getElementById('csvUploadModal');
-  const csvUploadModal      = new bootstrap.Modal(csvUploadModalEl);
-  const csvUploadConfirmBtn = document.getElementById('csv-upload-confirm-btn');
-
-  const csvFileInput  = document.getElementById('csv-file-input');
-  const csvFileLabel  = document.getElementById('csv-file-label');
-  const csvClearBtn   = document.getElementById('csv-clear-btn');
-
-  function updateFileLabel() {
-    const n = csvFileInput.files.length;
-    csvFileLabel.textContent = n === 0 ? 'Choose Files' : n === 1 ? '1 File' : n + ' Files';
-    csvClearBtn.classList.toggle('d-none', n === 0);
-  }
-
-  csvFileInput.addEventListener('change', updateFileLabel);
-
-  csvClearBtn.addEventListener('click', () => {
-    csvFileInput.value = '';
-    updateFileLabel();
-  });
-
-  csvUploadForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const files = Array.from(document.getElementById('csv-file-input').files);
-    if (files.length === 0) return;
-    const counts = await Promise.all(files.map(countCsvRows));
-    const tbody = document.getElementById('csv-upload-preview-body');
-    tbody.innerHTML = '';
-    files.forEach((file, i) => {
-      const tr = document.createElement('tr');
-      const tdName = document.createElement('td');
-      tdName.className = 'text-truncate';
-      tdName.style.maxWidth = '220px';
-      tdName.textContent = file.name;
-      const tdCount = document.createElement('td');
-      tdCount.className = 'text-end';
-      tdCount.textContent = counts[i];
-      tr.appendChild(tdName);
-      tr.appendChild(tdCount);
-      tbody.appendChild(tr);
-    });
-    csvUploadModal.show();
-  });
-
-  csvUploadConfirmBtn.addEventListener('click', () => {
-    csvUploadModal.hide();
-    csvUploadForm.submit();
   });
 
   document.getElementById('add-row-btn').addEventListener('click', addNewRow);

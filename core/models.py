@@ -200,23 +200,6 @@ class Transaction(models.Model):
         return f"{self.date} — {self.description} — ${self.amount}"
 
 
-class CSVUpload(models.Model):
-    expense_month = models.ForeignKey(
-        ExpenseMonth,
-        on_delete=models.CASCADE,
-        related_name="csv_uploads",
-    )
-    filename = models.CharField(max_length=200)
-    row_count = models.PositiveIntegerField()
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-uploaded_at"]
-
-    def __str__(self) -> str:
-        return f"{self.filename} ({self.row_count} rows)"
-
-
 class CsvMappingProfile(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

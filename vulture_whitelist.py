@@ -13,7 +13,6 @@ from core.models import (
     Category,
     CategoryBudget,
     CsvMappingProfile,
-    CSVUpload,
     ExpenseMonth,
     MerchantRule,
     Transaction,
@@ -26,14 +25,13 @@ from core.models import (
 from core.admin import (
     CategoryAdmin,
     CategoryBudgetAdmin,
-    CSVUploadAdmin,
     ExpenseMonthAdmin,
     MerchantRuleAdmin,
     TransactionAdmin,
     UserAdmin,
     UserGridPreferenceAdmin,
 )
-from core.forms import CategoryBudgetForm, CategoryForm, ExpenseMonthEditForm, _MultipleFileInput
+from core.forms import CategoryBudgetForm, CategoryForm, ExpenseMonthEditForm
 from core.templatetags.math_filters import floor
 
 # ── AppConfig ──────────────────────────────────────────────────────────────────
@@ -58,8 +56,6 @@ ExpenseMonth.Meta.verbose_name_plural
 
 Transaction.Meta.ordering
 Transaction.TRANSACTION_TYPES
-
-CSVUpload.Meta.ordering
 
 CategoryBudget.Meta.unique_together
 CategoryBudget.Meta.verbose_name
@@ -99,10 +95,6 @@ TransactionAdmin.list_filter
 TransactionAdmin.search_fields
 TransactionAdmin.ordering
 
-CSVUploadAdmin.list_display
-CSVUploadAdmin.list_filter
-CSVUploadAdmin.ordering
-
 UserGridPreferenceAdmin.list_display
 UserGridPreferenceAdmin.search_fields
 
@@ -124,9 +116,6 @@ CategoryForm.Meta.widgets
 ExpenseMonthEditForm.Meta.model
 ExpenseMonthEditForm.Meta.fields
 ExpenseMonthEditForm.Meta.widgets
-
-# ── Custom FileInput attribute (read by Django's form rendering) ───────────────
-_MultipleFileInput.allow_multiple_selected
 
 # ── Template tag ──────────────────────────────────────────────────────────────
 floor

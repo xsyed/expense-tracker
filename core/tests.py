@@ -9,7 +9,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from core.models import DEFAULT_CATEGORIES
+from core.models import DEFAULT_CATEGORIES, Category, ExpenseMonth
 from core.recurring_utils import detect_recurring
 
 User = get_user_model()
@@ -193,6 +193,108 @@ class TemplateRenderTests(TestCase):
         self.client.login(username="u2@x.com", password="Pass!1234")
         response = self.client.post("/auth/logout/", follow=True)
         self.assertContains(response, "logged out")
+
+
+class CsvImportUiTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="csv@example.com", password="Pass!1234")
+        self.client.login(username="csv@example.com", password="Pass!1234")
+        self.month = ExpenseMonth.objects.create(
+            user=self.user,
+            label="Apr 26",
+            month=datetime.date(2026, 4, 1),
+        )
+
+    def test_month_detail_shows_import_cta_without_legacy_upload_ui(self):
+        response = self.client.get(f"/months/{self.month.pk}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Import CSV")
+        self.assertContains(response, 'href="/csv-mapper/"')
+        self.assertNotContains(response, "Upload CSV")
+        self.assertNotContains(response, "csv-upload-form")
+        self.assertNotContains(response, "csvUploadModal")
+        self.assertNotContains(response, "Upload history")
+
+    def test_csv_mapper_page_uses_import_labeling(self):
+        response = self.client.get("/csv-mapper/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Import CSV")
+        self.assertNotContains(response, "CSV Mapper")
+
+    def test_legacy_month_upload_route_is_removed(self):
+        response = self.client.post(f"/months/{self.month.pk}/upload/")
+        self.assertEqual(response.status_code, 404)
+
+
+class CategoryCreateTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="categories@example.com", password="Pass!1234")
+        self.client.login(username="categories@example.com", password="Pass!1234")
+
+    def test_create_expense_category_defaults_expense_type(self):
+        response = self.client.post(
+            "/categories/",
+            {
+                "name": "Fuel",
+                "category_type": "expense",
+            },
+        )
+
+        self.assertRedirects(response, "/categories/", fetch_redirect_response=False)
+        category = Category.objects.get(user=self.user, name="Fuel")
+        self.assertEqual(category.expense_type, "variable")
+
+    def test_create_income_category_without_expense_type(self):
+        response = self.client.post(
+            "/categories/",
+            {
+                "name": "Salary Bonus",
+                "category_type": "income",
+            },
+        )
+
+        self.assertRedirects(response, "/categories/", fetch_redirect_response=False)
+        category = Category.objects.get(user=self.user, name="Salary Bonus")
+        self.assertEqual(category.category_type, "income")
+
+    def test_duplicate_category_name_shows_validation_error(self):
+        Category.objects.create(user=self.user, name="Fuel", category_type="expense", expense_type="variable")
+
+        response = self.client.post(
+            "/categories/",
+            {
+                "name": "fuel",
+                "category_type": "expense",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "You already have a category with this name.")
+
+    def test_missing_name_shows_validation_error(self):
+        response = self.client.post(
+            "/categories/",
+            {
+                "name": "",
+                "category_type": "expense",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This field is required.")
+
+    def test_created_category_is_visible_after_redirect(self):
+        response = self.client.post(
+            "/categories/",
+            {
+                "name": "Dining Out",
+                "category_type": "expense",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Dining Out")
 
 
 _BASE_DATE = datetime.date(2025, 1, 1)

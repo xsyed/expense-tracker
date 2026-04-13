@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}CSV Mapper — Expense Tracker{% endblock %}
+{% block title %}Import CSV — Expense Tracker{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <h2 class="mb-0">CSV Mapper</h2>
+  <h2 class="mb-0">Import CSV</h2>
   <div class="d-flex gap-2">
     <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#saved-profiles-section" aria-expanded="false">
       <i class="bi bi-bookmark me-1"></i>Saved Profiles
@@ -18,7 +18,7 @@
 
 <div class="collapse mb-4" id="saved-profiles-section">
   <div class="card">
-    <div class="card-header py-2"><small class="fw-semibold">Saved Mapping Profiles</small></div>
+    <div class="card-header py-2"><small class="fw-semibold">Saved Import Profiles</small></div>
     <div class="card-body" id="saved-profiles-body">
       <p class="text-muted small mb-0">Loading&hellip;</p>
     </div>

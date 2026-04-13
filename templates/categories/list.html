@@ -13,6 +13,11 @@
   <div class="card-body">
     <form method="post" class="row g-2 align-items-start">
       {% csrf_token %}
+      {% if form.non_field_errors %}
+        <div class="col-12">
+          <div class="text-danger small">{{ form.non_field_errors.0 }}</div>
+        </div>
+      {% endif %}
       <div class="col-auto flex-grow-1">
         {{ form.name }}
         {% if form.name.errors %}
@@ -21,7 +26,15 @@
       </div>
       <div class="col-auto">
         {{ form.category_type }}
+        {% if form.category_type.errors %}
+          <div class="text-danger small mt-1">{{ form.category_type.errors.0 }}</div>
+        {% endif %}
       </div>
+      {% if form.expense_type.errors %}
+        <div class="col-12">
+          <div class="text-danger small">{{ form.expense_type.errors.0 }}</div>
+        </div>
+      {% endif %}
       <div class="col-auto">
         <button type="submit" class="btn btn-primary">
           <i class="bi bi-plus-lg me-1"></i>Add

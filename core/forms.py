@@ -66,6 +66,7 @@ class CategoryForm(forms.ModelForm[Category]):
     def __init__(self, *args: Any, user: UserModel | None = None, **kwargs: Any) -> None:
         self.user = user
         super().__init__(*args, **kwargs)
+        self.fields["expense_type"].required = False
 
     def clean_name(self) -> str:
         name: str = self.cleaned_data["name"]
@@ -76,6 +77,18 @@ class CategoryForm(forms.ModelForm[Category]):
         if qs.exists():
             raise forms.ValidationError("You already have a category with this name.")
         return name
+
+    def clean(self) -> dict[str, Any]:
+        cleaned_data: dict[str, Any] = super().clean() or {}
+        category_type = cleaned_data.get("category_type")
+        expense_type = cleaned_data.get("expense_type")
+
+        if category_type == "expense" and not expense_type:
+            cleaned_data["expense_type"] = "variable"
+        elif category_type == "income":
+            cleaned_data["expense_type"] = expense_type or "variable"
+
+        return cleaned_data
 
 
 class AccountForm(forms.ModelForm[Account]):
@@ -186,28 +199,6 @@ class ExpenseMonthEditForm(forms.ModelForm[ExpenseMonth]):
         widgets = {
             "label": forms.TextInput(attrs={"class": "form-control"}),
         }
-
-
-class _MultipleFileInput(forms.FileInput):
-    """FileInput subclass that supports the ``multiple`` HTML attribute."""
-
-    allow_multiple_selected = True
-
-
-class CSVUploadForm(forms.Form):
-    csv_file = forms.FileField(
-        widget=_MultipleFileInput(attrs={"accept": ".csv", "class": "form-control"}),
-        help_text="Select one or more .csv files to upload.",
-    )
-
-    def clean_csv_file(self) -> list[Any]:
-        files = self.files.getlist("csv_file")
-        if not files:
-            raise forms.ValidationError("Please select at least one CSV file.")
-        for f in files:
-            if not f.name or not f.name.lower().endswith(".csv"):
-                raise forms.ValidationError(f'"{f.name}" is not a CSV file. Only .csv files are allowed.')
-        return files
 
 
 class CategoryBudgetForm(forms.Form):

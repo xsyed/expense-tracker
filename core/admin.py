@@ -8,7 +8,6 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     Category,
     CategoryBudget,
-    CSVUpload,
     ExpenseMonth,
     Goal,
     GoalContribution,
@@ -54,13 +53,6 @@ class TransactionAdmin(admin.ModelAdmin[Transaction]):
     list_filter = ("transaction_type", "expense_month")
     search_fields = ("description",)
     ordering = ("-date",)
-
-
-@admin.register(CSVUpload)
-class CSVUploadAdmin(admin.ModelAdmin[CSVUpload]):
-    list_display = ("expense_month", "filename", "row_count", "uploaded_at")
-    list_filter = ("expense_month",)
-    ordering = ("-uploaded_at",)
 
 
 @admin.register(CategoryBudget)

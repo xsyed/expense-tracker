@@ -40,7 +40,6 @@ from core.views_charts import (
     chart_monthly_totals_view,
     chart_top_categories_view,
 )
-from core.views_csv import csv_upload_view
 from core.views_csv_mapper import (
     csv_mapper_bulk_view,
     csv_mapper_delete_profile,
@@ -96,7 +95,6 @@ urlpatterns = [
     path("months/<int:pk>/", month_detail_view, name="month_detail"),
     path("months/<int:pk>/edit/", month_edit_view, name="month_edit"),
     path("months/<int:pk>/delete/", month_delete_view, name="month_delete"),
-    path("months/<int:pk>/upload/", csv_upload_view, name="csv_upload"),
     path(
         "months/<int:month_id>/transactions/<int:tx_id>/update/",
         transaction_update_view,
