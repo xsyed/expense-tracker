@@ -33,6 +33,7 @@ from core.views_auth import (
 )
 from core.views_budgets import budget_setup_view
 from core.views_categories import category_delete_view, category_edit_view, category_list_view
+from core.views_category_spend import category_spend_data_view, category_spend_page_view
 from core.views_category_trends import category_trends_data_view
 from core.views_charts import (
     chart_category_breakdown_view,
@@ -140,6 +141,8 @@ urlpatterns = [
     path("insights/", insights_view, name="insights"),
     path("savings-planner/", savings_planner_view, name="savings_planner"),
     path("api/savings-planner/overview/", savings_planner_overview_api, name="savings_planner_overview_api"),
+    path("category-spend/", category_spend_page_view, name="category_spend"),
+    path("api/category-spend/", category_spend_data_view, name="category_spend_data"),
     path("goals/", goal_list_view, name="goal_list"),
     path("goals/create/", goal_create_view, name="goal_create"),
     path("goals/<int:pk>/edit/", goal_edit_view, name="goal_edit"),

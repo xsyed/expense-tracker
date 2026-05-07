@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Category Spend — Expense Tracker{% endblock %}
+
+{% block content %}
+<div id="loading-spinner" class="d-flex justify-content-center align-items-center" style="min-height: 200px;">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Loading...</span>
+  </div>
+</div>
+
+<div id="empty-state" class="card d-none">
+  <div class="card-body text-center py-5">
+    <i class="bi bi-inbox display-3 text-muted"></i>
+    <p class="mt-3 text-muted">No transaction data found. Upload a CSV or create a month to get started.</p>
+  </div>
+</div>
+
+<div id="error-state" class="alert alert-danger d-none" role="alert"></div>
+
+<div id="content-wrapper" class="d-none">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Category Spend</h2>
+    <select id="month-select" class="form-select w-auto"></select>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="text-muted">Total Income</h6>
+          <p class="fs-4 fw-bold mb-0" id="summary-income">$0.00</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="text-muted">Total Expenses</h6>
+          <p class="fs-4 fw-bold mb-0" id="summary-expenses">$0.00</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="text-muted">Net</h6>
+          <p class="fs-4 fw-bold mb-0" id="summary-net">$0.00</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h4 class="mb-3">Income</h4>
+  <div id="income-cards" class="row g-3"></div>
+
+  <h4 class="mt-4 mb-3">Expenses</h4>
+  <div id="expense-cards" class="row g-3"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const loadingSpinner = document.getElementById('loading-spinner');
+  const emptyState = document.getElementById('empty-state');
+  const errorState = document.getElementById('error-state');
+  const contentWrapper = document.getElementById('content-wrapper');
+  const monthSelect = document.getElementById('month-select');
+  const incomeCards = document.getElementById('income-cards');
+  const expenseCards = document.getElementById('expense-cards');
+  const summaryIncome = document.getElementById('summary-income');
+  const summaryExpenses = document.getElementById('summary-expenses');
+  const summaryNet = document.getElementById('summary-net');
+
+  const fmt = new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'}).format;
+
+  function showState(state) {
+    loadingSpinner.classList.toggle('d-none', state !== 'loading');
+    emptyState.classList.toggle('d-none', state !== 'empty');
+    errorState.classList.toggle('d-none', state !== 'error');
+    contentWrapper.classList.toggle('d-none', state !== 'content');
+  }
+
+  function renderData(data) {
+    if (data.available_months.length === 0) {
+      showState('empty');
+      return;
+    }
+
+    monthSelect.innerHTML = '';
+    for (const month of data.available_months) {
+      const parts = month.split('-');
+      const d = new Date(+parts[0], +parts[1] - 1, 1);
+      const label = d.toLocaleDateString('en-US', {month: 'short', year: 'numeric'});
+      const opt = document.createElement('option');
+      opt.value = month;
+      opt.textContent = label;
+      monthSelect.appendChild(opt);
+    }
+    monthSelect.value = data.available_months[0];
+
+    incomeCards.innerHTML = '';
+    for (const entry of data.income) {
+      incomeCards.insertAdjacentHTML('beforeend', `
+        <div class="col-md-4 col-lg-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <h6 class="card-title text-muted">${entry.category}</h6>
+              <p class="card-text fs-4 fw-bold mb-0">${fmt(entry.total)}</p>
+            </div>
+          </div>
+        </div>
+      `);
+    }
+
+    expenseCards.innerHTML = '';
+    for (const entry of data.expenses) {
+      const dangerClass = entry.over_budget ? ' bg-danger-subtle' : '';
+      expenseCards.insertAdjacentHTML('beforeend', `
+        <div class="col-md-4 col-lg-3">
+          <div class="card${dangerClass} h-100">
+            <div class="card-body">
+              <h6 class="card-title text-muted">${entry.category}</h6>
+              <p class="card-text fs-4 fw-bold mb-0">${fmt(entry.total)}</p>
+            </div>
+          </div>
+        </div>
+      `);
+    }
+
+    summaryIncome.textContent = fmt(data.total_income);
+    summaryExpenses.textContent = fmt(data.total_expenses);
+    summaryNet.textContent = fmt(data.net);
+
+    showState('content');
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    fetch(SCRIPT_PREFIX + '/api/category-spend/')
+      .then(function (r) {
+        if (!r.ok) throw new Error('Failed to load data');
+        return r.json();
+      })
+      .then(renderData)
+      .catch(function (err) {
+        errorState.textContent = err.message;
+        showState('error');
+      });
+  });
+
+  monthSelect.addEventListener('change', function () {
+    var selected = monthSelect.value;
+    incomeCards.innerHTML = '';
+    expenseCards.innerHTML = '';
+    summaryIncome.textContent = '$0.00';
+    summaryExpenses.textContent = '$0.00';
+    summaryNet.textContent = '$0.00';
+    contentWrapper.classList.remove('d-none');
+
+    fetch(SCRIPT_PREFIX + '/api/category-spend/?month=' + encodeURIComponent(selected))
+      .then(function (r) {
+        if (!r.ok) throw new Error('Failed to load data');
+        return r.json();
+      })
+      .then(function (data) {
+        renderData(data);
+        monthSelect.value = selected;
+      })
+      .catch(function (err) {
+        errorState.textContent = err.message;
+        errorState.classList.remove('d-none');
+      });
+  });
+})();
+</script>
+{% endblock %}
