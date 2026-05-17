@@ -79,10 +79,11 @@ def _category_stats(df: pd.DataFrame, month_keys: list[str]) -> list[dict[str, s
 
     stats: list[dict[str, str | float]] = []
     for name in sorted(cat_types.index):
-        series = cat_monthly.loc[name].reindex(month_keys, fill_value=0.0)
-        avg = float(series.mean())
-        mn = float(series.min())
-        mx = float(series.max())
+        observed_series = cat_monthly.loc[name]
+        full_range_series = observed_series.reindex(month_keys, fill_value=0.0)
+        avg = float(full_range_series.mean())
+        mn = float(observed_series.min())
+        mx = float(observed_series.max())
         exp_type = str(cat_types[name])
         cut = max(0.0, avg - mn) if exp_type == "variable" else 0.0
         stats.append(

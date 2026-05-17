@@ -7,6 +7,12 @@ Format: **What went wrong → Root cause → Rule to enforce**
 
 <!-- Add new lessons below this line. Most recent first. -->
 
+## Savings planner historical minimum must not use injected zero months
+
+**What went wrong**: I explained `$0` historical minimums as expected before checking whether the table label matched user intent.
+**Root cause**: `_category_stats()` filled missing category months with `0.0` for all metrics, so "Historical Min" showed missing-month zeros instead of the lowest observed spend month.
+**Rule**: When displaying a category's historical minimum, compute it from observed category months only. Use full selected range for monthly average only when the metric is explicitly average monthly impact.
+
 ## Static 403 can be caused by parent directory traversal, not missing files
 
 **What went wrong**: nginx returned `403` for `/expense-tracker/static/js/csv_mapper.js` even after the file existed in `/home/sami/expense-tracker/staticfiles/js/`.

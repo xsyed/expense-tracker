@@ -6,12 +6,14 @@ Covers all 10 AC items from phases/phase-1-foundation-auth.md
 import datetime
 from decimal import Decimal
 
+import pandas as pd
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from core.models import DEFAULT_CATEGORIES, Category, ExpenseMonth
 from core.recurring_utils import detect_recurring
+from core.views_savings_planner import _category_stats
 
 User = get_user_model()
 
@@ -362,3 +364,31 @@ class RecurringDetectionTests(TestCase):
         results = detect_recurring(txns)
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["frequency"], "monthly")
+
+
+class SavingsPlannerCategoryStatsTests(TestCase):
+    def test_historical_min_ignores_months_without_category_spend(self) -> None:
+        df = pd.DataFrame(
+            [
+                {
+                    "amount": 90.0,
+                    "transaction_type": "expense",
+                    "category_name": "Dining",
+                    "expense_type": "variable",
+                    "month": "2026-04",
+                },
+                {
+                    "amount": 30.0,
+                    "transaction_type": "expense",
+                    "category_name": "Dining",
+                    "expense_type": "variable",
+                    "month": "2026-05",
+                },
+            ]
+        )
+
+        stats = _category_stats(df, ["2026-03", "2026-04", "2026-05"])
+
+        self.assertEqual(stats[0]["avg_spend"], 40.0)
+        self.assertEqual(stats[0]["min_spend"], 30.0)
+        self.assertEqual(stats[0]["cut_potential"], 10.0)
