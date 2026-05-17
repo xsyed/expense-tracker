@@ -5,6 +5,7 @@ Covers all 10 AC items from phases/phase-1-foundation-auth.md
 
 import datetime
 from decimal import Decimal
+from unittest.mock import patch
 
 import pandas as pd
 from django.contrib.auth import get_user_model
@@ -155,6 +156,11 @@ class LogoutTests(TestCase):
 class TemplateRenderTests(TestCase):
     """AC 9-10: Navbar and flash messages"""
 
+    def _force_login_user(self, email: str) -> None:
+        user = User.objects.create_user(email=email, password="Pass!1234")
+        TOTPDevice.objects.create(user=user, name="default", confirmed=True)
+        self.client.force_login(user)
+
     def test_signup_page_has_bootstrap(self):
         """AC 9 — signup renders auth card with Bootstrap"""
         response = self.client.get("/auth/signup/")
@@ -168,32 +174,72 @@ class TemplateRenderTests(TestCase):
         self.assertContains(response, "bootstrap")
 
     def test_home_page_contains_navbar_after_login(self):
-        """AC 9 — navbar with Home / Categories / Logout after login"""
-        User.objects.create_user(email="u@x.com", password="Pass!1234")
-        self.client.login(username="u@x.com", password="Pass!1234")
+        """AC 9 — navbar with core links after login"""
+        self._force_login_user("u@x.com")
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Expense Tracker")
-        self.assertContains(response, "Categories")
+        self.assertContains(response, "Accounts")
+        self.assertContains(response, "Insights")
         self.assertContains(response, "Logout")
+
+    def test_home_header_excludes_contextual_links_after_login(self):
+        self._force_login_user("nav-cleanup@example.com")
+
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'href="/categories/"')
+        self.assertNotContains(response, 'href="/category-spend/"')
+        self.assertNotContains(response, 'href="/savings-planner/"')
+        self.assertNotContains(response, 'href="/goals/"')
+
+    def test_insights_contains_contextual_navigation_without_trends(self):
+        self._force_login_user("insights-nav@example.com")
+
+        response = self.client.get("/insights/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'href="/categories/"')
+        self.assertContains(response, 'href="/savings-planner/"')
+        self.assertContains(response, 'href="/goals/"')
+        self.assertContains(response, "Manage Goals")
+        self.assertNotContains(response, 'id="trends-tab"')
+        self.assertNotContains(response, 'id="trends"')
+        self.assertNotContains(response, "/api/insights/category-trends/")
+
+    def test_categories_page_links_to_category_spend(self):
+        self._force_login_user("category-spend-link@example.com")
+
+        response = self.client.get("/categories/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'href="/category-spend/"')
+
+    def test_category_trends_endpoint_removed(self):
+        self._force_login_user("removed-trends@example.com")
+
+        response = self.client.get("/api/insights/category-trends/")
+
+        self.assertEqual(response.status_code, 404)
 
     def test_flash_message_shown_after_signup(self):
         """AC 10 — success flash shown after account creation"""
-        response = self.client.post(
-            "/auth/signup/",
-            {
-                "email": "flash@example.com",
-                "password1": "StrongPass123!",
-                "password2": "StrongPass123!",
-            },
-            follow=True,
-        )
-        self.assertContains(response, "Account created successfully")
+        with patch("core.views_auth.verify_turnstile", return_value=True):
+            response = self.client.post(
+                "/auth/signup/",
+                {
+                    "email": "flash@example.com",
+                    "password1": "StrongPass123!",
+                    "password2": "StrongPass123!",
+                },
+                follow=True,
+            )
+        self.assertContains(response, "Account created! Please set up two-factor authentication.")
 
     def test_flash_message_shown_after_logout(self):
         """AC 10 — flash shown after logout"""
-        User.objects.create_user(email="u2@x.com", password="Pass!1234")
-        self.client.login(username="u2@x.com", password="Pass!1234")
+        self._force_login_user("u2@x.com")
         response = self.client.post("/auth/logout/", follow=True)
         self.assertContains(response, "logged out")
 

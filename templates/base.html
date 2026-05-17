@@ -36,11 +36,6 @@
             </a>
           </li>
           <li class="nav-item">
-            <a class="nav-link {% if '/categories/' in request.path %}active{% endif %}" href="{% url 'category_list' %}">
-              <i class="bi bi-tags me-1"></i>Categories
-            </a>
-          </li>
-          <li class="nav-item">
             <a class="nav-link {% if '/accounts/' in request.path %}active{% endif %}" href="{% url 'account_list' %}">
               <i class="bi bi-credit-card me-1"></i>Accounts
             </a>
@@ -48,21 +43,6 @@
           <li class="nav-item">
             <a class="nav-link {% if '/insights/' in request.path %}active{% endif %}" href="{% url 'insights' %}">
               <i class="bi bi-graph-up me-1"></i>Insights
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if '/category-spend/' in request.path %}active{% endif %}" href="{% url 'category_spend' %}">
-              <i class="bi bi-cash-stack me-1"></i>Category Spend
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if '/savings-planner/' in request.path %}active{% endif %}" href="{% url 'savings_planner' %}">
-              <i class="bi bi-piggy-bank me-1"></i>Savings Planner
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if '/goals/' in request.path %}active{% endif %}" href="{% url 'goal_list' %}">
-              <i class="bi bi-bullseye me-1"></i>Goals
             </a>
           </li>
           <li class="nav-item">
