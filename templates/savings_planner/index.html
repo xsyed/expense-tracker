@@ -123,7 +123,12 @@
       <div class="col-sm-6">
         <div class="card h-100">
           <div class="card-body text-center">
-            <div class="text-muted small mb-1">Cut Needed</div>
+            <div class="text-muted small mb-1">
+              Cut Needed
+              <i class="bi bi-info-circle text-muted ms-1" id="sim-cut-needed-help"
+                data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true"
+                data-bs-title="Move the savings target to see how much spending needs to be reduced."></i>
+            </div>
             <div class="fw-bold fs-4" id="sim-cut-needed">$0</div>
           </div>
         </div>
@@ -131,7 +136,12 @@
       <div class="col-sm-6">
         <div class="card h-100">
           <div class="card-body text-center">
-            <div class="text-muted small mb-1">Feasibility</div>
+            <div class="text-muted small mb-1">
+              Feasibility
+              <i class="bi bi-info-circle text-muted ms-1" id="sim-feasibility-help"
+                data-bs-toggle="tooltip" data-bs-placement="top"
+                data-bs-title="How realistic this target is with the categories currently allowed for cuts."></i>
+            </div>
             <div class="fs-5" id="sim-feasibility">
               <span class="badge bg-success">On Track</span>
             </div>
@@ -152,12 +162,36 @@
           <table class="table table-sm" id="cut-table">
             <thead>
               <tr>
-                <th style="width: 48px;">Include</th>
-                <th>Category</th>
-                <th class="text-end">Avg Spend</th>
-                <th class="text-end">Historical Min</th>
-                <th class="text-end">Cut Potential</th>
-                <th class="text-end">Suggested Cut</th>
+                <th style="width: 48px;">
+                  Allow Cuts
+                  <i class="bi bi-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top"
+                    data-bs-title="Checked means the planner may suggest cutting this category. Uncheck it to protect it."></i>
+                </th>
+                <th>
+                  Category
+                  <i class="bi bi-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top"
+                    data-bs-title="The spending category being analyzed."></i>
+                </th>
+                <th class="text-end">
+                  Avg Spend
+                  <i class="bi bi-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top"
+                    data-bs-title="Average monthly spend in this category for the selected months."></i>
+                </th>
+                <th class="text-end">
+                  Historical Min
+                  <i class="bi bi-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top"
+                    data-bs-title="Lowest month where this category had spending."></i>
+                </th>
+                <th class="text-end">
+                  Cut Potential
+                  <i class="bi bi-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top"
+                    data-bs-title="Possible monthly reduction compared with historical min."></i>
+                </th>
+                <th class="text-end">
+                  Suggested Cut
+                  <i class="bi bi-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top"
+                    data-bs-title="Actual cut recommended for the current savings target."></i>
+                </th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -205,6 +239,19 @@ function getIncludedVariableStats() {
   return data.category_stats
     .filter(c => c.expense_type === 'variable' && !excludedCategories.has(c.category_name))
     .sort((a, b) => b.cut_potential - a.cut_potential);
+}
+
+function getExcludedVariableStats() {
+  return data.category_stats
+    .filter(c => c.expense_type === 'variable' && excludedCategories.has(c.category_name));
+}
+
+function refreshTooltip(el, title, html = false) {
+  const existing = bootstrap.Tooltip.getInstance(el);
+  if (existing) existing.dispose();
+  el.setAttribute('data-bs-title', title);
+  el.setAttribute('data-bs-html', html ? 'true' : 'false');
+  new bootstrap.Tooltip(el, { html: html });
 }
 
 function loadData(months) {
@@ -357,26 +404,53 @@ function runSimulation() {
 
   const cutNeeded = (avgFixed + avgVariable) - (avgIncome - target);
   const variableStats = getIncludedVariableStats();
-  const totalCutPotential = variableStats.reduce((s, c) => s + c.cut_potential, 0);
+  const selectedCutPotential = variableStats.reduce((s, c) => s + c.cut_potential, 0);
+  const selectedVariableSpend = variableStats.reduce((s, c) => s + c.avg_spend, 0);
+  const excludedVariableSpend = getExcludedVariableStats().reduce((s, c) => s + c.avg_spend, 0);
+  const protectedSpend = avgFixed + excludedVariableSpend;
+  const cutRoomUsage = selectedCutPotential > 0 ? cutNeeded / selectedCutPotential : 0;
 
-  let tier, tierClass;
+  let tier, tierClass, tierTooltip;
   if (cutNeeded <= 0) {
-    tier = 'On Track'; tierClass = 'bg-success';
-  } else if (totalCutPotential === 0) {
-    tier = 'Impossible'; tierClass = 'bg-danger';
-  } else if (cutNeeded <= totalCutPotential) {
-    tier = 'Achievable'; tierClass = 'bg-warning text-dark';
-  } else if (cutNeeded < avgVariable) {
-    tier = 'Aggressive'; tierClass = 'bg-orange';
+    tier = 'On Track';
+    tierClass = 'bg-success';
+    tierTooltip = 'No cut needed. Your current average spending already supports this savings target.';
+  } else if (cutNeeded <= selectedCutPotential && cutRoomUsage < 0.8) {
+    tier = 'Achievable';
+    tierClass = 'bg-success';
+    tierTooltip = 'Cut needed is covered by the categories currently allowed for cuts.';
+  } else if (cutNeeded <= selectedCutPotential) {
+    tier = 'Tight';
+    tierClass = 'bg-warning text-dark';
+    tierTooltip = 'Cut needed is covered, but it uses most of the available cut room.';
+  } else if (cutNeeded < selectedVariableSpend) {
+    tier = 'Aggressive';
+    tierClass = 'bg-orange';
+    tierTooltip = 'Cut needed is bigger than realistic cut room, but still less than total selected flexible spending.';
   } else {
-    tier = 'Impossible'; tierClass = 'bg-danger';
+    tier = 'Not Feasible';
+    tierClass = 'bg-danger';
+    tierTooltip = 'Even cutting all selected flexible spending is not enough for this target.';
   }
 
   document.getElementById('sim-cut-needed').textContent = fmt.format(Math.max(0, cutNeeded));
   document.getElementById('sim-feasibility').innerHTML =
-    `<span class="badge ${tierClass}">${tier}</span>`;
+    `<span class="badge ${tierClass}" data-bs-toggle="tooltip" data-bs-placement="top"
+      data-bs-title="${escapeHtml(tierTooltip)}">${tier}</span>`;
 
-  updateCutTableSuggestions(cutNeeded, totalCutPotential, variableStats);
+  refreshTooltip(
+    document.getElementById('sim-cut-needed-help'),
+    [
+      `Cut needed: ${fmtDec.format(Math.max(0, cutNeeded))}`,
+      `Available from selected categories: ${fmtDec.format(selectedCutPotential)}`,
+      `Protected spending: ${fmtDec.format(protectedSpend)}`
+    ].join('<br>'),
+    true
+  );
+  refreshTooltip(document.getElementById('sim-feasibility-help'), tierTooltip);
+  new bootstrap.Tooltip(document.querySelector('#sim-feasibility [data-bs-toggle="tooltip"]'));
+
+  updateCutTableSuggestions(cutNeeded, selectedCutPotential, variableStats);
 }
 
 function renderCutTable() {

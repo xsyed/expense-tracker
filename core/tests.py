@@ -245,6 +245,18 @@ class TemplateRenderTests(TestCase):
         response = self.client.post("/auth/logout/", follow=True)
         self.assertContains(response, "logged out")
 
+    def test_savings_planner_explains_cut_feasibility(self):
+        self._force_login_user("savings-explainer@example.com")
+
+        response = self.client.get("/savings-planner/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Allow Cuts")
+        self.assertContains(response, "Available from selected categories")
+        self.assertContains(response, "Protected spending")
+        self.assertContains(response, "Tight")
+        self.assertContains(response, "Not Feasible")
+
 
 class CsvImportUiTests(TestCase):
     def setUp(self):
