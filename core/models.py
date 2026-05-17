@@ -266,6 +266,7 @@ class Goal(models.Model):
     GOAL_TYPES = [
         ("savings", "Savings"),
         ("spending", "Spending"),
+        ("debt", "Debt"),
     ]
 
     user = models.ForeignKey(

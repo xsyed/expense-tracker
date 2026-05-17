@@ -18,7 +18,7 @@
     <div class="card h-100">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span class="fw-semibold">{{ goal.name }}</span>
-        <span class="badge {% if goal.goal_type == 'savings' %}bg-success{% else %}bg-info text-dark{% endif %}">
+        <span class="badge {% if goal.goal_type == 'savings' %}bg-success{% elif goal.goal_type == 'debt' %}bg-warning text-dark{% else %}bg-info text-dark{% endif %}">
           {{ goal.get_goal_type_display }}
         </span>
       </div>
@@ -27,6 +27,8 @@
           <div class="d-flex justify-content-between small text-muted mb-1">
             {% if goal.goal_type == 'savings' %}
             <span>${{ progress }} of ${{ goal.target_amount }}</span>
+            {% elif goal.goal_type == 'debt' %}
+            <span>${{ progress }} paid of ${{ goal.target_amount }}</span>
             {% else %}
             <span>${{ progress }} spent of ${{ goal.target_amount }} limit</span>
             {% endif %}
@@ -48,7 +50,9 @@
           </div>
         </div>
         {% if goal.category %}
-        <p class="small text-muted mb-1"><i class="bi bi-tag me-1"></i>{{ goal.category.name }}</p>
+        <p class="small text-muted mb-1">
+          <i class="bi bi-tag me-1"></i>{% if goal.goal_type == 'debt' %}Autotracked from {% endif %}{{ goal.category.name }}
+        </p>
         {% endif %}
         {% if goal.deadline %}
         <p class="small text-muted mb-0"><i class="bi bi-calendar me-1"></i>Deadline: {{ goal.deadline }}</p>

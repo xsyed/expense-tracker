@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import datetime
-from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import GoalContributionForm, GoalForm
-from .models import Goal, GoalContribution, Transaction
+from .goal_progress import debt_goal_progress, savings_goal_progress, spending_goal_progress
+from .models import Goal, GoalContribution
 
 
 @login_required
@@ -22,16 +21,11 @@ def goal_list_view(request: HttpRequest) -> HttpResponse:
     goal_data = []
     for goal in goals:
         if goal.goal_type == "savings":
-            progress = goal.contributions.aggregate(total=Sum("amount"))["total"] or Decimal(0)
-        elif goal.category_id is not None:
-            progress = Transaction.objects.filter(
-                expense_month__user=request.user,
-                expense_month__month=current_month,
-                category_id=goal.category_id,
-                transaction_type="expense",
-            ).aggregate(total=Sum("amount"))["total"] or Decimal(0)
+            progress = savings_goal_progress(goal)
+        elif goal.goal_type == "debt":
+            progress = debt_goal_progress(goal)
         else:
-            progress = Decimal(0)
+            progress = spending_goal_progress(goal, current_month)
 
         pct = min(int(progress / goal.target_amount * 100), 100) if goal.target_amount > 0 else 0
         goal_data.append({"goal": goal, "progress": progress, "pct": pct})

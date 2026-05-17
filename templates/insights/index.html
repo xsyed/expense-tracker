@@ -140,7 +140,7 @@
         <div class="col-lg-6">
           <div class="card border-0 shadow-sm h-100">
             <div class="card-body">
-              <h6 class="card-title fw-semibold mb-3">Contribution Timeline</h6>
+              <h6 class="card-title fw-semibold mb-3">Goal Progress Timeline</h6>
               <div id="goals-timeline-empty" class="text-center text-muted py-4 d-none">
                 No contributions recorded yet.
               </div>
@@ -148,7 +148,7 @@
             </div>
           </div>
         </div>
-        <!-- Goal Projection Chart (Savings Goals) -->
+        <!-- Goal Projection Chart -->
         <div id="projection-section" class="col-lg-6 d-none">
           <div class="card border-0 shadow-sm h-100">
             <div class="card-body">
@@ -879,11 +879,11 @@
       if (g.days_remaining >= 30) lines.push('Monthly: ' + fmtCurrency(daily * 30.44));
       return lines.join('<br>');
     }
-    if (remaining <= 0) return 'Goal completed! 🎉';
+    if (remaining <= 0) return 'Goal completed';
     if (g.days_remaining < 0) return 'Deadline passed ' + Math.abs(g.days_remaining) + ' days ago';
     if (g.days_remaining === 0) return 'Last day! Need ' + fmtCurrency(remaining) + ' today';
     const daily = remaining / g.days_remaining;
-    const lines = ['<strong>Needed to reach goal:</strong>'];
+    const lines = ['<strong>' + (g.goal_type === 'debt' ? 'Needed to pay off debt:' : 'Needed to reach goal:') + '</strong>'];
     lines.push('Daily: ' + fmtCurrency(daily));
     if (g.days_remaining >= 7) lines.push('Weekly: ' + fmtCurrency(daily * 7));
     if (g.days_remaining >= 30) lines.push('Monthly: ' + fmtCurrency(daily * 30.44));
@@ -929,6 +929,7 @@
             '<div class="mt-2 small text-muted">' +
               '<i class="bi bi-calendar3 me-1"></i>' + deadlineText + infoIconHtml +
             '</div>' +
+            (g.goal_type === 'debt' && g.category_name ? '<div class="mt-1 small text-muted"><i class="bi bi-tag me-1"></i>Autotracked from ' + escapeHtml(g.category_name) + '</div>' : '') +
           '</div>' +
         '</div>';
       if (tooltipContent !== null) {
@@ -1004,7 +1005,7 @@
         document.getElementById('goals-content').classList.remove('d-none');
         renderGoalCards(data.goals);
         renderGoalsTimeline(data.timeline);
-        initProjectionWidget(data.goals.filter(function(g) { return g.goal_type === 'savings'; }));
+        initProjectionWidget(data.goals.filter(function(g) { return g.goal_type === 'savings' || g.goal_type === 'debt'; }));
         initSpendingTrendWidget(data.goals.filter(function(g) { return g.goal_type === 'spending'; }));
       })
       .catch(function(err) {
@@ -1013,27 +1014,27 @@
       });
   }
 
-  // ── Goal Projection Chart (Savings) ──
+  // ── Goal Projection Chart ──
 
   let projectionChart = null;
 
-  function initProjectionWidget(savingsGoals) {
+  function initProjectionWidget(projectableGoals) {
     const section = document.getElementById('projection-section');
-    if (savingsGoals.length === 0) {
+    if (projectableGoals.length === 0) {
       section.classList.add('d-none');
       return;
     }
     section.classList.remove('d-none');
     const select = document.getElementById('projection-goal-select');
     select.innerHTML = '';
-    savingsGoals.forEach(function(g) {
+    projectableGoals.forEach(function(g) {
       const opt = document.createElement('option');
       opt.value = g.id;
       opt.textContent = g.name;
       select.appendChild(opt);
     });
     select.onchange = function() { fetchProjectionData(this.value); };
-    fetchProjectionData(savingsGoals[0].id);
+    fetchProjectionData(projectableGoals[0].id);
   }
 
   function fmtMonthLabel(m) {
@@ -1053,7 +1054,7 @@
     var chartEl = document.getElementById('projection-chart');
     var completionEl = document.getElementById('projection-completion');
     if (data.historical.length === 0) {
-      chartEl.innerHTML = '<p class="text-muted text-center py-4">No contributions recorded yet.</p>';
+      chartEl.innerHTML = '<p class="text-muted text-center py-4">No progress recorded yet.</p>';
       completionEl.textContent = '';
       return;
     }

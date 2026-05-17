@@ -10,7 +10,8 @@ from django.db.models import Sum
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 
-from .models import CategoryBudget, ExpenseMonth, Goal, GoalContribution, Transaction
+from .goal_progress import debt_payment_transactions
+from .models import CategoryBudget, ExpenseMonth, Goal, Transaction
 from .models import User as UserModel
 from .recurring_utils import build_category_breakdown, detect_recurring
 
@@ -127,9 +128,9 @@ def _savings_health_from_pace(
     progress: Decimal,
     today: datetime.date,
     months_remaining: Decimal,
-    contributions: list[GoalContribution],
+    activity_dates: list[datetime.date],
 ) -> str:
-    earliest_date = min(c.date for c in contributions)
+    earliest_date = min(activity_dates)
     months_active = max(Decimal("1"), Decimal(str((today - earliest_date).days)) / Decimal("30"))
     avg_monthly = progress / months_active
     pace_needed = (target_amount - progress) / months_remaining
@@ -139,32 +140,34 @@ def _savings_health_from_pace(
 
 
 def _compute_goal_health(
-    goal: Goal, progress: Decimal, today: datetime.date, contributions: list[GoalContribution]
+    goal: Goal, progress: Decimal, today: datetime.date, activity_dates: list[datetime.date]
 ) -> str:
     if goal.goal_type == "spending":
         return "on_track" if progress <= goal.target_amount else "over"
     if progress >= goal.target_amount:
         return "completed"
     if not goal.deadline:
-        return "on_track" if contributions else "behind"
+        return "on_track" if activity_dates else "behind"
     months_remaining = Decimal(str((goal.deadline - today).days)) / Decimal("30")
-    if months_remaining <= 0 or not contributions:
+    if months_remaining <= 0 or not activity_dates:
         return "behind"
-    return _savings_health_from_pace(goal.target_amount, progress, today, months_remaining, contributions)
+    return _savings_health_from_pace(goal.target_amount, progress, today, months_remaining, activity_dates)
 
 
-def _build_contribution_timeline(savings_goals: list[tuple[Goal, list[GoalContribution]]]) -> dict[str, Any]:
-    if not savings_goals:
+def _build_goal_progress_timeline(
+    goal_entries: list[tuple[str, list[tuple[datetime.date, Decimal]]]],
+) -> dict[str, Any]:
+    if not goal_entries:
         return {"months": [], "series": []}
     all_months: set[str] = set()
     per_goal_monthly: list[tuple[str, dict[str, float]]] = []
-    for goal, contributions in savings_goals:
+    for goal_name, entries in goal_entries:
         monthly: dict[str, float] = {}
-        for c in contributions:
-            key = c.date.strftime("%Y-%m")
-            monthly[key] = monthly.get(key, 0.0) + float(c.amount)
+        for entry_date, amount in entries:
+            key = entry_date.strftime("%Y-%m")
+            monthly[key] = monthly.get(key, 0.0) + float(amount)
             all_months.add(key)
-        per_goal_monthly.append((goal.name, monthly))
+        per_goal_monthly.append((goal_name, monthly))
     if not all_months:
         return {"months": [], "series": []}
     sorted_months = sorted(all_months)
@@ -197,16 +200,23 @@ def goals_data_view(request: HttpRequest) -> JsonResponse:
         )
         spending_map = {row["category_id"]: row["total"] or Decimal(0) for row in rows}
     goal_list = []
-    savings_goals: list[tuple[Goal, list[GoalContribution]]] = []
+    timeline_entries: list[tuple[str, list[tuple[datetime.date, Decimal]]]] = []
     for goal in goals:
         contributions = list(goal.contributions.all())
         if goal.goal_type == "savings":
             progress = sum((c.amount for c in contributions), Decimal(0))
-            savings_goals.append((goal, contributions))
+            activity_dates = [c.date for c in contributions]
+            timeline_entries.append((goal.name, [(c.date, c.amount) for c in contributions]))
+        elif goal.goal_type == "debt":
+            debt_transactions = list(debt_payment_transactions(goal).order_by("date"))
+            progress = sum((t.amount for t in debt_transactions), Decimal(0))
+            activity_dates = [t.date for t in debt_transactions]
+            timeline_entries.append((goal.name, [(t.date, t.amount) for t in debt_transactions]))
         else:
             progress = spending_map.get(goal.category_id, Decimal(0)) if goal.category_id else Decimal(0)
+            activity_dates = []
         pct = min(int(progress / goal.target_amount * 100), 100) if goal.target_amount > 0 else 0  # noqa: PLR2004
-        health = _compute_goal_health(goal, progress, today, contributions)
+        health = _compute_goal_health(goal, progress, today, activity_dates)
         days_remaining = (goal.deadline - today).days if goal.deadline else None
         goal_list.append(
             {
@@ -219,9 +229,10 @@ def goals_data_view(request: HttpRequest) -> JsonResponse:
                 "health": health,
                 "deadline": goal.deadline.isoformat() if goal.deadline else None,
                 "days_remaining": days_remaining,
+                "category_name": goal.category.name if goal.category else "",
             }
         )
-    return JsonResponse({"goals": goal_list, "timeline": _build_contribution_timeline(savings_goals)})
+    return JsonResponse({"goals": goal_list, "timeline": _build_goal_progress_timeline(timeline_entries)})
 
 
 def _parse_month_param(raw: str) -> tuple[int, int] | None:
@@ -289,18 +300,22 @@ def _next_month(year: int, month: int) -> tuple[int, int]:
 
 @login_required
 def goal_projection_data_view(request: HttpRequest, pk: int) -> JsonResponse:
-    goal = Goal.objects.filter(pk=pk, user=request.user, goal_type="savings").first()
+    goal = Goal.objects.filter(pk=pk, user=request.user, goal_type__in=["savings", "debt"]).first()
     if goal is None:
         return JsonResponse({"error": "Goal not found"}, status=404)
 
-    contributions = list(goal.contributions.order_by("date"))
+    entries = (
+        [(c.date, c.amount) for c in goal.contributions.order_by("date")]
+        if goal.goal_type == "savings"
+        else [(t.date, t.amount) for t in debt_payment_transactions(goal).order_by("date")]
+    )
     target = float(goal.target_amount)
 
     # Build monthly cumulative
     monthly_totals: dict[str, float] = {}
-    for c in contributions:
-        key = c.date.strftime("%Y-%m")
-        monthly_totals[key] = monthly_totals.get(key, 0.0) + float(c.amount)
+    for entry_date, amount in entries:
+        key = entry_date.strftime("%Y-%m")
+        monthly_totals[key] = monthly_totals.get(key, 0.0) + float(amount)
 
     if not monthly_totals:
         return JsonResponse(
