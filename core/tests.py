@@ -179,7 +179,6 @@ class TemplateRenderTests(TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Expense Tracker")
-        self.assertContains(response, "Accounts")
         self.assertContains(response, "Insights")
         self.assertContains(response, "Logout")
 
@@ -193,6 +192,7 @@ class TemplateRenderTests(TestCase):
         self.assertNotContains(response, 'href="/category-spend/"')
         self.assertNotContains(response, 'href="/savings-planner/"')
         self.assertNotContains(response, 'href="/goals/"')
+        self.assertNotContains(response, 'href="/accounts/"')
 
     def test_insights_contains_contextual_navigation_without_trends(self):
         self._force_login_user("insights-nav@example.com")
@@ -203,7 +203,9 @@ class TemplateRenderTests(TestCase):
         self.assertContains(response, 'href="/categories/"')
         self.assertContains(response, 'href="/savings-planner/"')
         self.assertContains(response, 'href="/goals/"')
+        self.assertContains(response, 'href="/accounts/"')
         self.assertContains(response, "Manage Goals")
+        self.assertContains(response, "Manage Accounts")
         self.assertNotContains(response, 'id="trends-tab"')
         self.assertNotContains(response, 'id="trends"')
         self.assertNotContains(response, "/api/insights/category-trends/")
