@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from core.models import DEFAULT_CATEGORIES, Category, ExpenseMonth
 from core.recurring_utils import detect_recurring
@@ -198,7 +199,8 @@ class TemplateRenderTests(TestCase):
 class CsvImportUiTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="csv@example.com", password="Pass!1234")
-        self.client.login(username="csv@example.com", password="Pass!1234")
+        TOTPDevice.objects.create(user=self.user, name="default", confirmed=True)
+        self.client.force_login(self.user)
         self.month = ExpenseMonth.objects.create(
             user=self.user,
             label="Apr 26",
@@ -219,6 +221,7 @@ class CsvImportUiTests(TestCase):
         response = self.client.get("/csv-mapper/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Import CSV")
+        self.assertContains(response, 'monthDetail: "/months/0/".replace("/0/", "/{id}/")')
         self.assertNotContains(response, "CSV Mapper")
 
     def test_legacy_month_upload_route_is_removed(self):

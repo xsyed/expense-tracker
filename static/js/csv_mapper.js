@@ -28,6 +28,10 @@ function capitalise(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+function monthDetailUrl(monthId) {
+  return window.CSV_MAPPER_URLS.monthDetail.replace("{id}", encodeURIComponent(String(monthId)));
+}
+
 function parseCSVLine(line) {
   const result = [];
   let current = "";
@@ -603,9 +607,17 @@ class MappingPanel {
         Imported <strong>${result.total_imported}</strong> transaction${result.total_imported !== 1 ? "s" : ""}.
       </p>`;
     if (result.months && result.months.length > 0) {
+      if (result.months.length === 1) {
+        html += `
+          <p class="mb-2">
+            <a href="${monthDetailUrl(result.months[0].pk)}" class="btn btn-sm btn-success">
+              <i class="bi bi-arrow-right-circle me-1"></i>View added month
+            </a>
+          </p>`;
+      }
       html += `
         <table class="table table-sm mb-2">
-          <thead class="table-light"><tr><th>Month</th><th class="text-center">Transactions</th><th>Status</th></tr></thead>
+          <thead class="table-light"><tr><th>Month</th><th class="text-center">Transactions</th><th>Status</th><th></th></tr></thead>
           <tbody>`;
       for (const m of result.months) {
         const statusBadge = m.is_new
@@ -615,6 +627,9 @@ class MappingPanel {
           <td>${escapeHtml(m.label)}</td>
           <td class="text-center">${m.count}</td>
           <td>${statusBadge}</td>
+          <td class="text-end">
+            <a href="${monthDetailUrl(m.pk)}" class="btn btn-sm btn-outline-success">View</a>
+          </td>
         </tr>`;
       }
       html += `</tbody></table>`;
