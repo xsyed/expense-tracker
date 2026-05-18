@@ -450,6 +450,12 @@
     return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
+  function destroyChart(instance) {
+    if (instance) {
+      instance.destroy();
+    }
+  }
+
   function syncMonthSelect(selectedMonth) {
     const select = document.getElementById('budget-month-select');
     if (select.value === selectedMonth) return;
@@ -962,6 +968,8 @@
   // ── Goal Projection Chart ──
 
   let projectionChart = null;
+  let projectionFetchController = null;
+  let projectionRequestVersion = 0;
 
   function initProjectionWidget(projectableGoals) {
     const section = document.getElementById('projection-section');
@@ -989,15 +997,32 @@
   }
 
   function fetchProjectionData(goalId) {
-    fetch(SCRIPT_PREFIX + '/api/insights/goals/' + goalId + '/projection/')
+    if (projectionFetchController) {
+      projectionFetchController.abort();
+    }
+    projectionFetchController = new AbortController();
+    projectionRequestVersion += 1;
+    var requestVersion = projectionRequestVersion;
+
+    fetch(SCRIPT_PREFIX + '/api/insights/goals/' + goalId + '/projection/', { signal: projectionFetchController.signal })
       .then(function(r) { return r.json(); })
-      .then(function(data) { renderProjectionChart(data); })
-      .catch(function(err) { console.error('Failed to fetch projection:', err); });
+      .then(function(data) {
+        if (requestVersion !== projectionRequestVersion) return;
+        renderProjectionChart(data);
+      })
+      .catch(function(err) {
+        if (err && err.name === 'AbortError') return;
+        console.error('Failed to fetch projection:', err);
+      });
   }
 
   function renderProjectionChart(data) {
     var chartEl = document.getElementById('projection-chart');
     var completionEl = document.getElementById('projection-completion');
+    destroyChart(projectionChart);
+    projectionChart = null;
+    chartEl.innerHTML = '';
+
     if (data.historical.length === 0) {
       chartEl.innerHTML = '<p class="text-muted text-center py-4">No progress recorded yet.</p>';
       completionEl.textContent = '';
@@ -1075,12 +1100,8 @@
       annotations: annotations,
     };
 
-    if (projectionChart) {
-      projectionChart.updateOptions(options);
-    } else {
-      projectionChart = new ApexCharts(chartEl, options);
-      projectionChart.render();
-    }
+    projectionChart = new ApexCharts(chartEl, options);
+    projectionChart.render();
 
     if (data.estimated_completion) {
       completionEl.innerHTML = '<i class="bi bi-calendar-check me-1"></i>Estimated completion: <strong>' +
@@ -1095,6 +1116,8 @@
   // ── Spending Goal Trend ──
 
   let spendingTrendChart = null;
+  let spendingTrendFetchController = null;
+  let spendingTrendRequestVersion = 0;
 
   function initSpendingTrendWidget(spendingGoals) {
     var section = document.getElementById('spending-trend-section');
@@ -1116,15 +1139,31 @@
   }
 
   function fetchSpendingTrend(goalId) {
-    fetch(SCRIPT_PREFIX + '/api/insights/goals/' + goalId + '/spending-trend/')
+    if (spendingTrendFetchController) {
+      spendingTrendFetchController.abort();
+    }
+    spendingTrendFetchController = new AbortController();
+    spendingTrendRequestVersion += 1;
+    var requestVersion = spendingTrendRequestVersion;
+
+    fetch(SCRIPT_PREFIX + '/api/insights/goals/' + goalId + '/spending-trend/', { signal: spendingTrendFetchController.signal })
       .then(function(r) { return r.json(); })
-      .then(function(data) { renderSpendingTrendChart(data); })
-      .catch(function(err) { console.error('Failed to fetch spending trend:', err); });
+      .then(function(data) {
+        if (requestVersion !== spendingTrendRequestVersion) return;
+        renderSpendingTrendChart(data);
+      })
+      .catch(function(err) {
+        if (err && err.name === 'AbortError') return;
+        console.error('Failed to fetch spending trend:', err);
+      });
   }
 
   function renderSpendingTrendChart(data) {
     var chartEl = document.getElementById('spending-trend-chart');
     var labels = data.months.map(fmtMonthLabel);
+    destroyChart(spendingTrendChart);
+    spendingTrendChart = null;
+    chartEl.innerHTML = '';
 
     var options = {
       chart: {
@@ -1155,12 +1194,8 @@
       },
     };
 
-    if (spendingTrendChart) {
-      spendingTrendChart.updateOptions(options);
-    } else {
-      spendingTrendChart = new ApexCharts(chartEl, options);
-      spendingTrendChart.render();
-    }
+    spendingTrendChart = new ApexCharts(chartEl, options);
+    spendingTrendChart.render();
   }
 
   document.addEventListener('DOMContentLoaded', function() {
