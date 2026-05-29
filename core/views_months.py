@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import ExpenseMonthCreateForm, ExpenseMonthEditForm
 from .models import Account, Category, ExpenseMonth, UserGridPreference
+from .month_budget_rows import build_month_budget_rows
 
 
 def _month_summary(month: ExpenseMonth) -> dict[str, int | bool]:
@@ -76,6 +77,7 @@ def month_detail_view(request: HttpRequest, pk: int) -> HttpResponse:
     ]
     categories_data = [{"id": c.id, "name": c.name} for c in Category.objects.filter(user=request.user)]
     accounts_data = [{"id": a.id, "name": a.name} for a in Account.objects.filter(user=request.user)]
+    budget_rows = build_month_budget_rows(expense_month)
     defaults = {col: True for col in grid_columns}
     defaults["account_name"] = False
     defaults["transaction_type"] = False
@@ -94,6 +96,8 @@ def month_detail_view(request: HttpRequest, pk: int) -> HttpResponse:
             "transactions_json": json.dumps(transactions_data),
             "categories_json": json.dumps(categories_data),
             "accounts_json": json.dumps(accounts_data),
+            "budget_rows": budget_rows,
+            "budget_rows_json": json.dumps(budget_rows),
             "column_visibility_json": json.dumps(visibility),
         },
     )

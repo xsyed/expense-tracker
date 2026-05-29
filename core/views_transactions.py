@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 
 from .merchant_utils import normalize_merchant
 from .models import Account, Category, ExpenseMonth, MerchantRule, Transaction, UserGridPreference
+from .month_budget_rows import build_month_budget_rows
 from .views_months import _month_summary
 
 
@@ -121,7 +122,14 @@ def transaction_update_view(request: HttpRequest, month_id: int, tx_id: int) -> 
         "category_name": transaction.category.name if transaction.category else "",
         "auto_categorized": transaction.auto_categorized,
     }
-    return JsonResponse({"success": True, "transaction": tx_data, "summary": _month_summary(month)})
+    return JsonResponse(
+        {
+            "success": True,
+            "transaction": tx_data,
+            "summary": _month_summary(month),
+            "budget_rows": build_month_budget_rows(month),
+        }
+    )
 
 
 def _parse_create_fields(
@@ -214,7 +222,14 @@ def transaction_create_view(request: HttpRequest, month_id: int) -> JsonResponse
         "category_name": transaction.category.name if transaction.category else "",
         "auto_categorized": transaction.auto_categorized,
     }
-    return JsonResponse({"success": True, "transaction": tx_data, "summary": _month_summary(month)})
+    return JsonResponse(
+        {
+            "success": True,
+            "transaction": tx_data,
+            "summary": _month_summary(month),
+            "budget_rows": build_month_budget_rows(month),
+        }
+    )
 
 
 @login_required
@@ -223,7 +238,9 @@ def transaction_delete_view(request: HttpRequest, month_id: int, tx_id: int) -> 
     month = get_object_or_404(ExpenseMonth, id=month_id, user=request.user)
     transaction = get_object_or_404(Transaction, id=tx_id, expense_month=month)
     transaction.delete()
-    return JsonResponse({"success": True, "summary": _month_summary(month)})
+    return JsonResponse(
+        {"success": True, "summary": _month_summary(month), "budget_rows": build_month_budget_rows(month)}
+    )
 
 
 @login_required
@@ -268,4 +285,11 @@ def transaction_bulk_delete_view(request: HttpRequest, month_id: int) -> JsonRes
     if not isinstance(ids, list) or not ids:
         return JsonResponse({"success": False, "error": "No transaction IDs provided."}, status=400)
     deleted_count, _ = Transaction.objects.filter(id__in=ids, expense_month=month).delete()
-    return JsonResponse({"success": True, "deleted_count": deleted_count, "summary": _month_summary(month)})
+    return JsonResponse(
+        {
+            "success": True,
+            "deleted_count": deleted_count,
+            "summary": _month_summary(month),
+            "budget_rows": build_month_budget_rows(month),
+        }
+    )
