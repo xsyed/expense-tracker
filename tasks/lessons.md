@@ -7,6 +7,12 @@ Format: **What went wrong → Root cause → Rule to enforce**
 
 <!-- Add new lessons below this line. Most recent first. -->
 
+## Budget panel should show active spend, not configured-but-unused categories
+
+**What went wrong**: I treated "zero-spend categories still appear" as final even after the panel became too noisy for the month detail sidebar.
+**Root cause**: The helper optimized for complete budget coverage instead of the sidebar's actual scan task: active spend this month.
+**Rule**: For compact month-detail budget panels, show only categories with current-month expense spend. For unbudgeted spend, show the category and amount without an "Unbudgeted" label or progress bar.
+
 ## Savings planner historical minimum must not use injected zero months
 
 **What went wrong**: I explained `$0` historical minimums as expected before checking whether the table label matched user intent.

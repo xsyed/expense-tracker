@@ -125,25 +125,25 @@
                 <div class="small fw-semibold text-truncate">{{ row.category_name }}</div>
                 <div class="small fw-semibold">${{ row.spent|floatformat:2 }}</div>
               </div>
+              {% if row.budget is not None %}
               <div class="d-flex justify-content-between gap-2 mt-1">
                 <div class="text-muted small">
-                  {% if row.budget is None %}Unbudgeted{% else %}${{ row.budget|floatformat:2 }} budget{% endif %}
+                  ${{ row.budget|floatformat:2 }} budget
                 </div>
-                {% if row.remaining is not None %}
                 <div class="small {% if row.status == 'over' %}text-danger{% else %}text-muted{% endif %}">
                   {% if row.status == 'over' %}${{ row.remaining|floatformat:2|slice:"1:" }} over{% else %}${{ row.remaining|floatformat:2 }} left{% endif %}
                 </div>
-                {% endif %}
               </div>
               <div class="progress category-budget-progress mt-2" role="progressbar" aria-label="{{ row.category_name }} budget usage" aria-valuenow="{{ row.progress_percent }}" aria-valuemin="0" aria-valuemax="100">
-                <div class="progress-bar {% if row.status == 'over' %}bg-danger{% elif row.status == 'near' %}bg-warning{% elif row.status == 'unbudgeted' %}bg-secondary{% else %}bg-success{% endif %}" style="width: {{ row.progress_percent }}%"></div>
+                <div class="progress-bar {% if row.status == 'over' %}bg-danger{% elif row.status == 'near' %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ row.progress_percent }}%"></div>
               </div>
               <div class="small mt-1 {% if row.status == 'over' %}text-danger{% elif row.status == 'near' %}text-warning{% else %}text-muted{% endif %}">
                 {{ row.status_label }}
               </div>
+              {% endif %}
             </div>
             {% empty %}
-            <div class="text-muted small py-2">No expense categories yet.</div>
+            <div class="text-muted small py-2">No category spend yet.</div>
             {% endfor %}
           </div>
         </div>
@@ -282,7 +282,6 @@
   function budgetStatusClasses(status) {
     if (status === 'over') return { bar: 'bg-danger', text: 'text-danger' };
     if (status === 'near') return { bar: 'bg-warning', text: 'text-warning' };
-    if (status === 'unbudgeted') return { bar: 'bg-secondary', text: 'text-muted' };
     return { bar: 'bg-success', text: 'text-muted' };
   }
 
@@ -293,7 +292,7 @@
     if (!rows.length) {
       const empty = document.createElement('div');
       empty.className = 'text-muted small py-2';
-      empty.textContent = 'No expense categories yet.';
+      empty.textContent = 'No category spend yet.';
       panel.appendChild(empty);
       return;
     }
@@ -313,38 +312,40 @@
       spent.textContent = formatCurrency(row.spent);
       top.append(name, spent);
 
-      const detail = document.createElement('div');
-      detail.className = 'd-flex justify-content-between gap-2 mt-1';
-      const budget = document.createElement('div');
-      budget.className = 'text-muted small';
-      budget.textContent = row.budget == null ? 'Unbudgeted' : formatCurrency(row.budget) + ' budget';
-      detail.appendChild(budget);
-      if (row.remaining != null) {
+      item.appendChild(top);
+
+      if (row.budget != null) {
+        const detail = document.createElement('div');
+        detail.className = 'd-flex justify-content-between gap-2 mt-1';
+        const budget = document.createElement('div');
+        budget.className = 'text-muted small';
+        budget.textContent = formatCurrency(row.budget) + ' budget';
+        detail.appendChild(budget);
         const remaining = document.createElement('div');
         remaining.className = 'small ' + (row.status === 'over' ? 'text-danger' : 'text-muted');
         remaining.textContent = row.status === 'over'
           ? formatCurrency(Math.abs(row.remaining)) + ' over'
           : formatCurrency(row.remaining) + ' left';
         detail.appendChild(remaining);
+
+        const progress = document.createElement('div');
+        progress.className = 'progress category-budget-progress mt-2';
+        progress.setAttribute('role', 'progressbar');
+        progress.setAttribute('aria-label', row.category_name + ' budget usage');
+        progress.setAttribute('aria-valuenow', row.progress_percent);
+        progress.setAttribute('aria-valuemin', '0');
+        progress.setAttribute('aria-valuemax', '100');
+        const bar = document.createElement('div');
+        bar.className = 'progress-bar ' + classes.bar;
+        bar.style.width = row.progress_percent + '%';
+        progress.appendChild(bar);
+
+        const status = document.createElement('div');
+        status.className = 'small mt-1 ' + classes.text;
+        status.textContent = row.status_label;
+
+        item.append(detail, progress, status);
       }
-
-      const progress = document.createElement('div');
-      progress.className = 'progress category-budget-progress mt-2';
-      progress.setAttribute('role', 'progressbar');
-      progress.setAttribute('aria-label', row.category_name + ' budget usage');
-      progress.setAttribute('aria-valuenow', row.progress_percent);
-      progress.setAttribute('aria-valuemin', '0');
-      progress.setAttribute('aria-valuemax', '100');
-      const bar = document.createElement('div');
-      bar.className = 'progress-bar ' + classes.bar;
-      bar.style.width = row.progress_percent + '%';
-      progress.appendChild(bar);
-
-      const status = document.createElement('div');
-      status.className = 'small mt-1 ' + classes.text;
-      status.textContent = row.status_label;
-
-      item.append(top, detail, progress, status);
       panel.appendChild(item);
     });
   }

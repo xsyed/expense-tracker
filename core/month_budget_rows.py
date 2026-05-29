@@ -36,7 +36,7 @@ def _status_label(status: BudgetStatus) -> str:
         "over": "Over",
         "near": "Near",
         "on_track": "On track",
-        "unbudgeted": "Unbudgeted",
+        "unbudgeted": "",
     }
     return labels[status]
 
@@ -55,6 +55,8 @@ def build_month_budget_rows(month: ExpenseMonth) -> list[MonthBudgetRow]:
     rows: list[MonthBudgetRow] = []
     for category in categories:
         spent = spent_map.get(category.id, Decimal("0"))
+        if spent == 0:
+            continue
         budget = budget_map.get(category.id)
         remaining = budget - spent if budget is not None else None
         progress_percent = float(min((spent / budget * 100), Decimal("100"))) if budget and budget > 0 else 0.0

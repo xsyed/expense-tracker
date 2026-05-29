@@ -74,18 +74,16 @@ class MonthBudgetRowsTests(TestCase):
             category=self.salary,
         )
 
-    def test_budget_rows_include_expense_categories_sorted_by_spend(self) -> None:
+    def test_budget_rows_include_spent_expense_categories_sorted_by_spend(self) -> None:
         rows = build_month_budget_rows(self.month)
 
-        self.assertEqual([row["category_name"] for row in rows], ["Rent", "Dining", "Grocery", "Zero Spend"])
+        self.assertEqual([row["category_name"] for row in rows], ["Rent", "Dining", "Grocery"])
         self.assertEqual(rows[0]["status"], "over")
         self.assertEqual(rows[0]["remaining"], -250.0)
         self.assertEqual(rows[1]["status"], "unbudgeted")
         self.assertIsNone(rows[1]["budget"])
         self.assertEqual(rows[2]["status"], "near")
         self.assertEqual(rows[2]["progress_percent"], 80.0)
-        self.assertEqual(rows[3]["spent"], 0.0)
-        self.assertEqual(rows[3]["status"], "on_track")
 
 
 class MonthBudgetPanelViewTests(TestCase):
@@ -100,6 +98,7 @@ class MonthBudgetPanelViewTests(TestCase):
             month=datetime.date(2026, 6, 1),
         )
         self.category = Category.objects.create(user=self.user, name="Fuel", category_type="expense")
+        self.unbudgeted_category = Category.objects.create(user=self.user, name="Parking", category_type="expense")
         CategoryBudget.objects.create(user=self.user, category=self.category, amount=Decimal("200.00"))
         Transaction.objects.create(
             expense_month=self.month,
@@ -108,6 +107,14 @@ class MonthBudgetPanelViewTests(TestCase):
             amount=Decimal("25.00"),
             transaction_type="expense",
             category=self.category,
+        )
+        Transaction.objects.create(
+            expense_month=self.month,
+            date=datetime.date(2026, 6, 3),
+            description="Parking",
+            amount=Decimal("12.00"),
+            transaction_type="expense",
+            category=self.unbudgeted_category,
         )
 
     def test_month_detail_renders_category_budget_panel(self) -> None:
@@ -119,6 +126,10 @@ class MonthBudgetPanelViewTests(TestCase):
         self.assertContains(response, "$25.00")
         self.assertContains(response, "$200.00 budget")
         self.assertContains(response, "On track")
+        self.assertContains(response, "Parking")
+        self.assertContains(response, "$12.00")
+        self.assertNotContains(response, "Unbudgeted")
+        self.assertNotContains(response, "Parking budget usage")
 
 
 class TransactionBudgetResponseTests(TestCase):
@@ -182,4 +193,4 @@ class TransactionBudgetResponseTests(TestCase):
             month_id=self.month.id,
         )
         bulk_delete_budget_rows = cast(list[dict[str, object]], bulk_delete_data["budget_rows"])
-        self.assertEqual(bulk_delete_budget_rows[0]["spent"], 0.0)
+        self.assertEqual(bulk_delete_budget_rows, [])
