@@ -10,10 +10,29 @@ from django.test import TestCase
 from django.urls import reverse
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
+from core.forms import CategoryBudgetForm
 from core.models import Category, CategoryBudget, ExpenseMonth, Transaction
 from core.month_budget_rows import build_month_budget_rows
 
 User = get_user_model()
+
+
+class CategoryBudgetFormTests(TestCase):
+    def test_category_fields_sort_by_allocation_descending_then_name(self) -> None:
+        user = User.objects.create_user(email="budget-form@example.com")
+        Category.objects.filter(user=user).delete()
+        groceries = Category.objects.create(user=user, name="Groceries", category_type="expense")
+        rent = Category.objects.create(user=user, name="Rent", category_type="expense")
+        utilities = Category.objects.create(user=user, name="Utilities", category_type="expense")
+        Category.objects.create(user=user, name="Dining", category_type="expense")
+        CategoryBudget.objects.create(user=user, category=groceries, amount=Decimal("450.00"))
+        CategoryBudget.objects.create(user=user, category=rent, amount=Decimal("1200.00"))
+        CategoryBudget.objects.create(user=user, category=utilities, amount=Decimal("0.00"))
+
+        form = CategoryBudgetForm(user=user)
+
+        category_labels = [field.label for name, field in form.fields.items() if name.startswith("budget_")]
+        self.assertEqual(category_labels, ["Rent", "Groceries", "Dining", "Utilities"])
 
 
 class MonthBudgetRowsTests(TestCase):

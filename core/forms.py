@@ -219,8 +219,9 @@ class CategoryBudgetForm(forms.Form):
         if user is None:
             return
         self.fields["total_budget"].initial = user.monthly_budget
-        categories = Category.objects.filter(user=user)
         existing = {cb.category_id: cb.amount for cb in CategoryBudget.objects.filter(user=user)}
+        categories = list(Category.objects.filter(user=user))
+        categories.sort(key=lambda cat: (-(existing.get(cat.pk) or Decimal(0)), cat.name.casefold()))
         for cat in categories:
             self.fields[f"budget_{cat.pk}"] = forms.DecimalField(
                 max_digits=10,
