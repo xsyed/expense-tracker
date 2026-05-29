@@ -83,27 +83,7 @@
   </div>
 </div>
 
-<!-- Section 2: Charts -->
-<div class="row g-3 mb-4">
-  <div class="col-lg-6">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-body">
-        <h6 class="card-title fw-semibold mb-3">Category Expense Breakdown</h6>
-        <div id="donut-chart"></div>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-6">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-body">
-        <h6 class="card-title fw-semibold mb-3">Monthly Breakdown</h6>
-        <div id="area-chart"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Section 3: Savings Simulator -->
+<!-- Section 2: Savings Simulator -->
 <div class="card border-0 shadow-sm mb-4">
   <div class="card-body">
     <h6 class="card-title fw-semibold mb-3">Savings Simulator</h6>
@@ -222,8 +202,6 @@ const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD',
 const fmtDec = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 let data = null;
-let donutChart = null;
-let areaChart = null;
 let barChart = null;
 let fetchController = null;
 
@@ -293,8 +271,6 @@ function render() {
 
   renderWarnings();
   renderCards();
-  renderDonutChart();
-  renderAreaChart();
   excludedCategories = new Set();
   renderCutTable();
   renderBarChart();
@@ -328,55 +304,6 @@ function renderCards() {
   const sb = data.savings_breakdown;
   document.getElementById('card-savings-subtitle').textContent =
     fmtDec.format(sb.explicit_transfers) + ' explicit transfers + ' + fmtDec.format(sb.unallocated) + ' unallocated';
-}
-
-function renderDonutChart() {
-  const expenseStats = data.category_stats.filter(c => c.expense_type !== 'income');
-  const labels = expenseStats.map(c => c.category_name);
-  const series = expenseStats.map(c => c.avg_spend);
-
-  const options = {
-    chart: { type: 'donut', height: 350 },
-    series: series,
-    labels: labels,
-    legend: { position: 'bottom' },
-    tooltip: {
-      y: { formatter: v => fmt.format(v) }
-    }
-  };
-
-  if (donutChart) donutChart.destroy();
-  donutChart = new ApexCharts(document.getElementById('donut-chart'), options);
-  donutChart.render();
-}
-
-function renderAreaChart() {
-  const seriesData = [
-    { name: 'Fixed', data: data.monthly.fixed, color: '#0d6efd' },
-    { name: 'Variable', data: data.monthly.variable, color: '#fd7e14' },
-    { name: 'Savings Transfer', data: data.monthly.savings_transfer, color: '#198754' },
-    { name: 'Unallocated', data: data.monthly.savings, color: '#20c997' }
-  ];
-
-  const options = {
-    chart: { type: 'area', height: 350, stacked: true },
-    series: seriesData.map(s => ({ name: s.name, data: s.data })),
-    colors: seriesData.map(s => s.color),
-    xaxis: { categories: data.months },
-    yaxis: {
-      labels: { formatter: v => fmt.format(v) }
-    },
-    tooltip: {
-      y: { formatter: v => fmt.format(v) }
-    },
-    dataLabels: { enabled: false },
-    stroke: { curve: 'smooth', width: 2 },
-    fill: { type: 'gradient', gradient: { opacityFrom: 0.5, opacityTo: 0.1 } }
-  };
-
-  if (areaChart) areaChart.destroy();
-  areaChart = new ApexCharts(document.getElementById('area-chart'), options);
-  areaChart.render();
 }
 
 function initSimulator() {

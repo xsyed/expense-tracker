@@ -112,23 +112,14 @@
     </div>
   </div>
 
-  <!-- Chart 4 (Top Categories) + Chart 5 (Month-over-Month) -->
+  <!-- Chart 4 (Top Categories) -->
   <div class="row g-3">
-    <div class="col-12 col-md-6">
+    <div class="col-12">
       <div class="card shadow-sm h-100">
         <div class="card-header fw-semibold">Top Categories</div>
         <div class="card-body">
           <div id="chart4"></div>
           <div id="chart4-empty" class="d-none text-center text-muted py-4"></div>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-6">
-      <div class="card shadow-sm h-100">
-        <div class="card-header fw-semibold">Month-over-Month</div>
-        <div class="card-body">
-          <div id="chart5"></div>
-          <div id="chart5-empty" class="d-none text-center text-muted py-4"></div>
         </div>
       </div>
     </div>
@@ -141,7 +132,7 @@
 <script>
   var currentRange = 6;
   var chart2Month = null;
-  var chart1 = null, chart2 = null, chart3 = null, chart4 = null, chart5 = null;
+  var chart1 = null, chart2 = null, chart3 = null, chart4 = null;
 
   function showEmpty(id, msg) {
     var emptyEl = document.getElementById(id + '-empty');
@@ -267,25 +258,6 @@
     chart4.render();
   }
 
-  function initChart5(data) {
-    destroyChart(chart5); chart5 = null;
-    if (data.insufficient) {
-      showEmpty('chart5', 'At least 2 months of expense data needed for month-over-month comparison.');
-      return;
-    }
-    hideEmpty('chart5');
-    chart5 = new ApexCharts(document.getElementById('chart5'), {
-      chart: { type: 'bar', height: 320, stacked: true, toolbar: { show: false } },
-      series: data.series,
-      xaxis: { categories: data.months },
-      dataLabels: { enabled: false },
-      tooltip: { y: { formatter: function (v) { return '$' + Number(v).toFixed(2); } } },
-      legend: { position: 'bottom' },
-      plotOptions: { bar: { columnWidth: '50%' } }
-    });
-    chart5.render();
-  }
-
   function refreshAllCharts() {
     var range = currentRange === 'all' ? 'all' : currentRange;
 
@@ -312,11 +284,6 @@
       .then(function (r) { return r.json(); })
       .then(function (data) { initChart4(data); })
       .catch(function () { showEmpty('chart4', 'Failed to load chart data.'); });
-
-    fetch(SCRIPT_PREFIX + '/api/charts/month-over-month/')
-      .then(function (r) { return r.json(); })
-      .then(function (data) { initChart5(data); })
-      .catch(function () { showEmpty('chart5', 'Failed to load chart data.'); });
   }
 
   document.addEventListener('DOMContentLoaded', function () {
