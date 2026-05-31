@@ -59,7 +59,7 @@
         <div class="col-sm-6 col-lg-3">
           <div class="card border-0 shadow-sm h-100">
             <div class="card-body">
-              <div class="text-muted small mb-1">Remaining</div>
+              <div class="text-muted small mb-1" id="card-remaining-label">Remaining</div>
               <div class="fw-bold fs-4" id="card-remaining">—</div>
             </div>
           </div>
@@ -498,6 +498,7 @@
     const remEl = document.getElementById('card-remaining');
     remEl.textContent  = fmtCurrency(Math.abs(totals.remaining));
     remEl.style.color  = remainingColor;
+    document.getElementById('card-remaining-label').textContent = totals.remaining < 0 ? 'Over Budget' : 'Remaining';
 
     const pctEl = document.getElementById('card-pct');
     pctEl.textContent = totals.pct_used.toFixed(1) + '%';
