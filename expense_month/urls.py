@@ -22,6 +22,20 @@ from two_factor.urls import urlpatterns as tf_urls
 
 from core.views_accounts import account_delete_view, account_edit_view, account_list_view
 from core.views_accounts_overview import accounts_overview_data_view
+from core.views_advisor import (
+    advisor_bootstrap_view,
+    advisor_conversation_detail_view,
+    advisor_conversations_view,
+    advisor_memory_delete_view,
+    advisor_memory_suggestion_accept_view,
+    advisor_memory_suggestion_dismiss_view,
+    advisor_memory_suggestion_edit_view,
+    advisor_memory_suggestion_reject_view,
+    advisor_memory_view,
+    advisor_message_create_view,
+    advisor_run_cancel_view,
+    advisor_run_detail_view,
+)
 from core.views_auth import (
     CustomDisableView,
     CustomLoginView,
@@ -139,6 +153,42 @@ urlpatterns = [
     path("insights/", insights_view, name="insights"),
     path("savings-planner/", savings_planner_view, name="savings_planner"),
     path("api/savings-planner/overview/", savings_planner_overview_api, name="savings_planner_overview_api"),
+    path("api/advisor/bootstrap/", advisor_bootstrap_view, name="advisor_bootstrap"),
+    path("api/advisor/conversations/", advisor_conversations_view, name="advisor_conversations"),
+    path(
+        "api/advisor/conversations/<int:pk>/",
+        advisor_conversation_detail_view,
+        name="advisor_conversation_detail",
+    ),
+    path(
+        "api/advisor/conversations/<int:pk>/messages/",
+        advisor_message_create_view,
+        name="advisor_message_create",
+    ),
+    path("api/advisor/runs/<int:pk>/", advisor_run_detail_view, name="advisor_run_detail"),
+    path("api/advisor/runs/<int:pk>/cancel/", advisor_run_cancel_view, name="advisor_run_cancel"),
+    path("api/advisor/memory/", advisor_memory_view, name="advisor_memory"),
+    path("api/advisor/memory/<int:pk>/delete/", advisor_memory_delete_view, name="advisor_memory_delete"),
+    path(
+        "api/advisor/memory-suggestions/<int:pk>/accept/",
+        advisor_memory_suggestion_accept_view,
+        name="advisor_memory_suggestion_accept",
+    ),
+    path(
+        "api/advisor/memory-suggestions/<int:pk>/reject/",
+        advisor_memory_suggestion_reject_view,
+        name="advisor_memory_suggestion_reject",
+    ),
+    path(
+        "api/advisor/memory-suggestions/<int:pk>/edit/",
+        advisor_memory_suggestion_edit_view,
+        name="advisor_memory_suggestion_edit",
+    ),
+    path(
+        "api/advisor/memory-suggestions/<int:pk>/dismiss/",
+        advisor_memory_suggestion_dismiss_view,
+        name="advisor_memory_suggestion_dismiss",
+    ),
     path("category-spend/", category_spend_page_view, name="category_spend"),
     path("api/category-spend/", category_spend_data_view, name="category_spend_data"),
     path("goals/", goal_list_view, name="goal_list"),
