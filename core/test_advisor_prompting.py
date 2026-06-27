@@ -19,7 +19,6 @@ from core.advisor_prompting import (
     build_planner_messages,
     generate_advisor_answer,
     plan_advisor_tools,
-    requires_follow_up_gate,
 )
 from core.advisor_provider import OpenRouterClient, OpenRouterError, OpenRouterMessage, OpenRouterResponse
 from core.models import Account, Category, ExpenseMonth, Transaction
@@ -98,11 +97,17 @@ class AdvisorPromptingTests(TestCase):
         self.assertNotIn("Dealer raw transaction that should stay private", joined_content)
 
     def test_planner_prompt_includes_tool_schemas_and_current_date(self) -> None:
-        messages = build_planner_messages("Use app data for a starter budget.", today=self.today)
+        messages = build_planner_messages(
+            "Use app data for a starter budget.",
+            today=self.today,
+            approved_memory={"items": [{"key": "planning_style", "value": "Prefers concise answers."}]},
+        )
         joined_content = "\n".join(message["content"] for message in messages)
 
         self.assertIn('get_budget_position: {"month": "YYYY-MM-DD"}', joined_content)
         self.assertIn("When the user asks to use app data", joined_content)
+        self.assertIn("Approved Advisor Memory", joined_content)
+        self.assertIn("Prefers concise answers", joined_content)
         self.assertIn("Current Date:\n2026-06-15", joined_content)
 
     @patch("core.advisor_provider.urllib.request.urlopen")
@@ -182,7 +187,7 @@ class AdvisorPromptingTests(TestCase):
         with self.assertRaises(PlannerContractError):
             plan_advisor_tools(client=client, user_message="Search the web for rates")
 
-    def test_follow_up_gate_prevents_model_call_for_high_impact_missing_facts(self) -> None:
+    def test_answer_generation_uses_openrouter_with_missing_facts(self) -> None:
         tool_outputs: list[ToolOutput] = [
             {
                 "name": "run_affordability_check",
@@ -198,7 +203,9 @@ class AdvisorPromptingTests(TestCase):
                 },
             }
         ]
-        client = FakeOpenRouterClient(OpenRouterResponse(content="Should not be used", model="answer-model", raw={}))
+        client = FakeOpenRouterClient(
+            OpenRouterResponse(content="Use app data and show caveats.", model="answer-model", raw={})
+        )
 
         answer = generate_advisor_answer(
             client=client,
@@ -207,11 +214,9 @@ class AdvisorPromptingTests(TestCase):
             tool_outputs=tool_outputs,
         )
 
-        self.assertTrue(requires_follow_up_gate(self.current_message.content, tool_outputs))
-        self.assertTrue(answer.follow_up_required)
-        self.assertFalse(client.called)
-        self.assertIn("current_available_cash", answer.content)
-        self.assertIn("Low until these facts are known", answer.content)
+        self.assertTrue(client.called)
+        self.assertFalse(answer.follow_up_required)
+        self.assertEqual(answer.content, "Use app data and show caveats.")
 
     def test_answer_generation_uses_openrouter_when_follow_up_gate_is_clear(self) -> None:
         tool_outputs: list[ToolOutput] = [

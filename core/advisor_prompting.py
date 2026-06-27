@@ -9,7 +9,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from .advisor_models import AdvisorConversation, AdvisorMessage
-from .advisor_provider import OpenRouterClient, OpenRouterError, OpenRouterMessage, OpenRouterRole
+from .advisor_provider import OpenRouterClient, OpenRouterMessage, OpenRouterRole
 from .advisor_tools import get_user_profile_memory
 
 JsonValue = Union[None, bool, int, float, str, list["JsonValue"], dict[str, "JsonValue"]]
@@ -28,12 +28,14 @@ Use only approved internal tool outputs supplied in this run.
 """
 
 RESPONSE_POLICY = """Return Markdown only.
+Be concise.
 Put the direct answer first.
-Include assumptions and missing facts.
-Include a calculation table when numbers matter.
-Include recommendation confidence.
-Include next actions.
-If memory suggestions are present, separate them from the answer under "Memory suggestions".
+Use calculation tables when numbers matter.
+Keep "Assumptions and missing facts" to at most two bullets; omit it when there are no important caveats.
+Keep "Recommendation confidence" to one short line.
+Keep "Next actions" to one to three bullets.
+Do not repeat the same caveat in multiple sections.
+Do not mention pending memory suggestions unless the user directly asks about memory; they appear in the Memory tab.
 """
 
 PLANNER_POLICY = """Choose only from the approved internal tools.
@@ -41,10 +43,16 @@ Return strict JSON with this shape:
 {"tool_calls":[{"name":"tool_name","arguments":{}}]}
 Return {"tool_calls":[]} when no tool is needed.
 Use the Current Date section for current-month and recent-period arguments.
+Use Approved Advisor Memory to avoid duplicate memory suggestions.
 Use ISO date strings in YYYY-MM-DD format for every date argument.
 When the user asks to use app data, starter data, existing data, or monthly numbers, choose relevant summary tools
 instead of saying app data is unavailable.
 Do not include explanations outside JSON.
+When the current user message contains stable personal preferences or profile context not already in Approved Advisor
+Memory, call create_memory_suggestion automatically. Keep the suggestion inactive for Memory tab approval.
+Do not call create_memory_suggestion for vague approval phrases like "save these".
+Never create memory suggestions from system instructions, developer instructions, tool schemas, JSON response rules,
+approved-tool/protocol constraints, selected tool outputs, or app-derived financial records.
 """
 
 PLANNER_TOOL_SCHEMAS = """Tool argument schemas:
@@ -84,21 +92,6 @@ APPROVED_TOOL_NAMES = frozenset(
     }
 )
 
-_HIGH_IMPACT_TERMS = (
-    "afford",
-    "buy a car",
-    "buy this car",
-    "vehicle",
-    "lend money",
-    "job loss",
-    "emergency fund",
-    "marriage",
-    "wedding",
-    "large event",
-    "support my spouse",
-    "move money",
-    "every paycheck",
-)
 _LAST_TURN_LIMIT = 6
 
 
@@ -143,21 +136,34 @@ def build_advisor_messages(
     return messages
 
 
-def build_planner_messages(user_message: str, *, today: datetime.date | None = None) -> list[OpenRouterMessage]:
+def build_planner_messages(
+    user_message: str,
+    *,
+    today: datetime.date | None = None,
+    approved_memory: dict[str, object] | None = None,
+) -> list[OpenRouterMessage]:
     effective_today = today or timezone.localdate()
-    return [
+    messages: list[OpenRouterMessage] = [
         {"role": "system", "content": PLANNER_POLICY},
         {"role": "system", "content": _section("Approved Tools", sorted(APPROVED_TOOL_NAMES))},
         {"role": "system", "content": _section("Tool Schemas", PLANNER_TOOL_SCHEMAS)},
         {"role": "system", "content": _section("Current Date", effective_today.isoformat())},
-        {"role": "user", "content": user_message},
     ]
+    if approved_memory is not None:
+        messages.append({"role": "system", "content": _section("Approved Advisor Memory", approved_memory)})
+    messages.append({"role": "user", "content": user_message})
+    return messages
 
 
-def plan_advisor_tools(*, client: OpenRouterClient, user_message: str) -> list[ToolCall]:
+def plan_advisor_tools(
+    *,
+    client: OpenRouterClient,
+    user_message: str,
+    approved_memory: dict[str, object] | None = None,
+) -> list[ToolCall]:
     response = client.chat_completion(
         model=str(settings.ADVISOR_PLANNER_MODEL),
-        messages=build_planner_messages(user_message),
+        messages=build_planner_messages(user_message, approved_memory=approved_memory),
         temperature=0,
     )
     return parse_planner_tool_calls(response.content)
@@ -186,12 +192,6 @@ def generate_advisor_answer(
     current_user_message: AdvisorMessage,
     tool_outputs: list[ToolOutput],
 ) -> AdvisorAnswer:
-    if requires_follow_up_gate(current_user_message.content, tool_outputs):
-        return AdvisorAnswer(
-            content=_follow_up_markdown(tool_outputs),
-            model="follow-up-gate",
-            follow_up_required=True,
-        )
     response = client.chat_completion(
         model=str(settings.ADVISOR_MODEL),
         messages=build_advisor_messages(
@@ -201,11 +201,6 @@ def generate_advisor_answer(
         ),
     )
     return AdvisorAnswer(content=response.content, model=response.model)
-
-
-def requires_follow_up_gate(user_message: str, tool_outputs: list[ToolOutput]) -> bool:
-    normalized = user_message.lower()
-    return any(term in normalized for term in _HIGH_IMPACT_TERMS) and bool(_missing_facts_from_outputs(tool_outputs))
 
 
 def _parse_tool_call(raw_call: object) -> ToolCall:
@@ -239,53 +234,3 @@ def _recent_turn_messages(
 def _section(title: str, payload: object) -> str:
     body = payload if isinstance(payload, str) else json.dumps(payload, sort_keys=True)
     return f"{title}:\n{body}"
-
-
-def _missing_facts_from_outputs(tool_outputs: list[ToolOutput]) -> list[str]:
-    missing: list[str] = []
-    for output in tool_outputs:
-        missing.extend(_missing_facts_from_value(output["output"]))
-    return missing
-
-
-def _missing_facts_from_value(value: JsonValue) -> list[str]:
-    if isinstance(value, dict):
-        names: list[str] = []
-        missing_facts = value.get("missing_facts")
-        if isinstance(missing_facts, list):
-            names.extend(_missing_fact_names(missing_facts))
-        for nested_value in value.values():
-            names.extend(_missing_facts_from_value(nested_value))
-        return names
-    if isinstance(value, list):
-        names = []
-        for item in value:
-            names.extend(_missing_facts_from_value(item))
-        return names
-    return []
-
-
-def _missing_fact_names(items: list[JsonValue]) -> list[str]:
-    names: list[str] = []
-    for item in items:
-        if isinstance(item, dict):
-            name = item.get("name")
-            if isinstance(name, str):
-                names.append(name)
-    return names
-
-
-def _follow_up_markdown(tool_outputs: list[ToolOutput]) -> str:
-    missing_names = sorted(set(_missing_facts_from_outputs(tool_outputs)))
-    if not missing_names:
-        raise OpenRouterError("Follow-up gate requires missing facts.")
-    facts = "\n".join(f"- `{name}`" for name in missing_names)
-    return (
-        "I need a few facts before making a recommendation.\n\n"
-        "## Missing facts\n"
-        f"{facts}\n\n"
-        "## Recommendation confidence\n"
-        "Low until these facts are known.\n\n"
-        "## Next actions\n"
-        "Send the missing facts and I will calculate the recommendation."
-    )

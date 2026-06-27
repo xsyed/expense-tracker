@@ -5,15 +5,18 @@ import json
 from decimal import Decimal
 from typing import Literal, TypedDict, Union, cast
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from .advisor_app_context import baseline_app_data_tool_calls
 from .advisor_calculation_tools import (
     convert_currency,
     run_affordability_check,
     run_emergency_fund_calculation,
     run_large_event_plan,
 )
+from .advisor_memory_approval import maybe_create_memory_approval_answer
 from .advisor_memory_tools import create_memory_suggestion
 from .advisor_prompting import (
     ToolCall,
@@ -55,23 +58,6 @@ CALCULATION_TOOL_NAMES = frozenset(
         "convert_currency",
     }
 )
-_BASELINE_APP_DATA_TERMS = (
-    "starter budget",
-    "starter data",
-    "first request",
-    "get started",
-    "from the app",
-    "app data",
-    "app itself",
-    "ask the app",
-    "use the app",
-    "use my app",
-    "use my data",
-    "existing data",
-    "stored data",
-    "monthly numbers",
-    "budget template",
-)
 
 
 class ToolTraceEntry(TypedDict, total=False):
@@ -108,22 +94,29 @@ def process_advisor_run(*, run_id: int, client: OpenRouterClient | None = None) 
 
     try:
         _save_partial(run, "Planning advisor answer...")
-        planned_tool_calls = plan_advisor_tools(client=effective_client, user_message=run.user_message.content)
-        tool_calls = _merge_tool_calls(
-            _baseline_app_data_tool_calls(run.user_message.content),
-            planned_tool_calls,
-        )
-        _stop_if_canceled(run)
-        tool_outputs, tool_trace = _execute_tool_calls(run, tool_calls)
-        _save_trace(run, tool_trace)
-        _stop_if_canceled(run)
-        _save_partial(run, "Drafting advisor response...")
-        answer = generate_advisor_answer(
-            client=effective_client,
-            conversation=run.conversation,
-            current_user_message=run.user_message,
-            tool_outputs=tool_outputs,
-        )
+        answer = maybe_create_memory_approval_answer(run)
+        if answer is None:
+            approved_memory = get_user_profile_memory(run.conversation.user)
+            planned_tool_calls = plan_advisor_tools(
+                client=effective_client,
+                user_message=run.user_message.content,
+                approved_memory=approved_memory,
+            )
+            tool_calls = _merge_tool_calls(
+                baseline_app_data_tool_calls(run.conversation.user, run.user_message.content),
+                planned_tool_calls,
+            )
+            _stop_if_canceled(run)
+            tool_outputs, tool_trace = _execute_tool_calls(run, tool_calls)
+            _save_trace(run, tool_trace)
+            _stop_if_canceled(run)
+            _save_partial(run, "Drafting advisor response...")
+            answer = generate_advisor_answer(
+                client=effective_client,
+                conversation=run.conversation,
+                current_user_message=run.user_message,
+                tool_outputs=tool_outputs,
+            )
         _stop_if_canceled(run)
     except Exception as exc:
         _mark_failed(run, str(exc))
@@ -205,26 +198,6 @@ class AdvisorRunCanceledError(RuntimeError):
     pass
 
 
-def _baseline_app_data_tool_calls(user_message: str) -> list[ToolCall]:
-    if not _needs_baseline_app_data(user_message):
-        return []
-
-    today = timezone.localdate()
-    return [
-        {"name": "get_user_profile_memory", "arguments": {}},
-        {"name": "get_cash_flow_summary", "arguments": {"months": 6, "end_month": today.isoformat()}},
-        {"name": "get_budget_position", "arguments": {"month": today.isoformat()}},
-        {"name": "get_recurring_obligations", "arguments": {}},
-        {"name": "get_goal_status", "arguments": {"today": today.isoformat()}},
-        {"name": "get_recent_spending_brief", "arguments": {"preset": "this_month"}},
-    ]
-
-
-def _needs_baseline_app_data(user_message: str) -> bool:
-    normalized = " ".join(user_message.lower().split())
-    return any(term in normalized for term in _BASELINE_APP_DATA_TERMS)
-
-
 def _merge_tool_calls(baseline_calls: list[ToolCall], planned_calls: list[ToolCall]) -> list[ToolCall]:
     merged: list[ToolCall] = []
     seen: set[tuple[str, str]] = set()
@@ -250,6 +223,25 @@ def _execute_tool_calls(run: AdvisorRun, tool_calls: list[ToolCall]) -> tuple[li
         arguments = tool_call["arguments"]
         try:
             output = _execute_tool_call(name=name, arguments=arguments, user=user, run=run)
+        except ValidationError as exc:
+            if name != "create_memory_suggestion":
+                raise
+            output = {
+                "status": "rejected",
+                "active": False,
+                "error": _validation_error_message(exc),
+            }
+            outputs.append({"name": name, "output": cast(JsonValue, output)})
+            trace.append(
+                {
+                    "name": name,
+                    "status": "rejected",
+                    "argument_keys": sorted(arguments),
+                    "output_keys": sorted(output),
+                }
+            )
+            _stop_if_canceled(run)
+            continue
         except Exception as exc:
             trace.append(
                 {
@@ -271,6 +263,10 @@ def _execute_tool_calls(run: AdvisorRun, tool_calls: list[ToolCall]) -> tuple[li
         )
         _stop_if_canceled(run)
     return outputs, trace
+
+
+def _validation_error_message(exc: ValidationError) -> str:
+    return " ".join(exc.messages)
 
 
 def _execute_tool_call(

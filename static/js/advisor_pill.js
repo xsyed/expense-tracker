@@ -874,9 +874,16 @@
         index += 1;
       } else if (line.startsWith("```")) {
         index = appendCodeBlock(fragment, lines, index);
+      } else if (isHorizontalRule(line)) {
+        appendHorizontalRule(fragment);
+        index += 1;
       } else if (/^#{1,3}\s+\S/.test(line)) {
         appendHeading(fragment, line);
         index += 1;
+      } else if (isTableStart(lines, index)) {
+        index = appendTable(fragment, lines, index);
+      } else if (/^\s*>\s?/.test(line)) {
+        index = appendBlockquote(fragment, lines, index);
       } else if (/^\s*[-*]\s+\S/.test(line)) {
         index = appendList(fragment, lines, index, false);
       } else if (/^\s*\d+\.\s+\S/.test(line)) {
@@ -905,6 +912,10 @@
     return index < lines.length ? index + 1 : index;
   }
 
+  function appendHorizontalRule(fragment) {
+    fragment.appendChild(document.createElement("hr"));
+  }
+
   function appendHeading(fragment, line) {
     const match = line.match(/^(#{1,3})\s+(.+)$/);
     const level = match ? match[1].length : 3;
@@ -931,10 +942,42 @@
     return index;
   }
 
+  function appendBlockquote(fragment, lines, startIndex) {
+    const quote = document.createElement("blockquote");
+    const parts = [];
+    let index = startIndex;
+    while (index < lines.length) {
+      const match = lines[index].match(/^\s*>\s?(.*)$/);
+      if (!match) {
+        break;
+      }
+      const text = match[1].trim();
+      if (text) {
+        parts.push(text);
+      } else {
+        appendBlockquoteParagraph(quote, parts);
+      }
+      index += 1;
+    }
+    appendBlockquoteParagraph(quote, parts);
+    fragment.appendChild(quote);
+    return index;
+  }
+
+  function appendBlockquoteParagraph(quote, parts) {
+    if (parts.length === 0) {
+      return;
+    }
+    const paragraph = document.createElement("p");
+    appendInline(paragraph, parts.join(" "));
+    quote.appendChild(paragraph);
+    parts.length = 0;
+  }
+
   function appendParagraph(fragment, lines, startIndex) {
     const parts = [];
     let index = startIndex;
-    while (index < lines.length && lines[index].trim() && !isBlockStart(lines[index])) {
+    while (index < lines.length && lines[index].trim() && !isBlockStart(lines, index)) {
       parts.push(lines[index].trim());
       index += 1;
     }
@@ -944,8 +987,97 @@
     return index;
   }
 
-  function isBlockStart(line) {
-    return line.startsWith("```") || /^#{1,3}\s+\S/.test(line) || /^\s*[-*]\s+\S/.test(line) || /^\s*\d+\.\s+\S/.test(line);
+  function appendTable(fragment, lines, startIndex) {
+    const headerCells = splitTableRow(lines[startIndex]);
+    const alignments = splitTableRow(lines[startIndex + 1]).map(tableAlignment);
+    const wrapper = document.createElement("div");
+    wrapper.className = "advisor-table-wrap";
+    const table = document.createElement("table");
+    table.className = "advisor-markdown-table";
+
+    const thead = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+    headerCells.forEach((cell, cellIndex) => {
+      const heading = document.createElement("th");
+      applyTableAlignment(heading, alignments[cellIndex]);
+      appendInline(heading, cell);
+      headerRow.appendChild(heading);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    let index = startIndex + 2;
+    while (index < lines.length && isTableRow(lines[index]) && !isTableDivider(lines[index])) {
+      const row = document.createElement("tr");
+      splitTableRow(lines[index]).forEach((cell, cellIndex) => {
+        const data = document.createElement("td");
+        applyTableAlignment(data, alignments[cellIndex]);
+        appendInline(data, cell);
+        row.appendChild(data);
+      });
+      tbody.appendChild(row);
+      index += 1;
+    }
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+    fragment.appendChild(wrapper);
+    return index;
+  }
+
+  function isBlockStart(lines, index) {
+    const line = lines[index];
+    return (
+      line.startsWith("```") ||
+      isHorizontalRule(line) ||
+      /^#{1,3}\s+\S/.test(line) ||
+      isTableStart(lines, index) ||
+      /^\s*>\s?/.test(line) ||
+      /^\s*[-*]\s+\S/.test(line) ||
+      /^\s*\d+\.\s+\S/.test(line)
+    );
+  }
+
+  function isHorizontalRule(line) {
+    return /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/.test(line);
+  }
+
+  function isTableStart(lines, index) {
+    return index + 1 < lines.length && isTableRow(lines[index]) && isTableDivider(lines[index + 1]);
+  }
+
+  function isTableRow(line) {
+    return splitTableRow(line).length >= 2;
+  }
+
+  function splitTableRow(line) {
+    const trimmed = line.trim();
+    if (!trimmed.includes("|")) {
+      return [];
+    }
+    return trimmed.replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+  }
+
+  function isTableDivider(line) {
+    const cells = splitTableRow(line);
+    return cells.length >= 2 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.replace(/\s+/g, "")));
+  }
+
+  function tableAlignment(cell) {
+    const compact = cell.replace(/\s+/g, "");
+    if (compact.startsWith(":") && compact.endsWith(":")) {
+      return "center";
+    }
+    if (compact.endsWith(":")) {
+      return "right";
+    }
+    return "left";
+  }
+
+  function applyTableAlignment(cell, alignment) {
+    if (alignment && alignment !== "left") {
+      cell.style.textAlign = alignment;
+    }
   }
 
   function appendInline(parent, text) {
