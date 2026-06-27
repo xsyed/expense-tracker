@@ -894,7 +894,6 @@
     }
 
     container.appendChild(fragment);
-    addSectionCopyButtons(container);
   }
 
   function appendCodeBlock(fragment, lines, startIndex) {
@@ -1144,45 +1143,6 @@
     return "";
   }
 
-  function addSectionCopyButtons(container) {
-    const headings = Array.from(container.querySelectorAll("h1, h2, h3"));
-    headings.forEach((heading) => {
-      const sectionText = collectSectionText(heading);
-      if (!sectionText) {
-        return;
-      }
-      const wrapper = document.createElement("div");
-      wrapper.className = "advisor-section-heading";
-      heading.parentNode.insertBefore(wrapper, heading);
-      wrapper.appendChild(heading);
-      const button = copyButtonFor("Copy section", "Section");
-      button.classList.add("advisor-section-copy");
-      button.addEventListener("click", () => copyToClipboard(sectionText, button, "Copied"));
-      wrapper.appendChild(button);
-    });
-  }
-
-  function collectSectionText(heading) {
-    const level = headingLevel(heading);
-    const parts = [heading.textContent.trim()];
-    let node = heading.nextSibling;
-    while (node) {
-      if (node.nodeType === Node.ELEMENT_NODE && /^H[1-3]$/.test(node.tagName) && headingLevel(node) <= level) {
-        break;
-      }
-      const text = node.textContent ? node.textContent.trim() : "";
-      if (text) {
-        parts.push(text);
-      }
-      node = node.nextSibling;
-    }
-    return parts.join("\n\n").trim();
-  }
-
-  function headingLevel(node) {
-    return Number(node.tagName.slice(1));
-  }
-
   function copyButtonFor(title, text) {
     const button = document.createElement("button");
     button.className = "advisor-copy-btn";
@@ -1321,6 +1281,7 @@
     const maxHeight = state.isFullscreen ? 256 : 176;
     input.style.height = "auto";
     input.style.height = `${Math.min(input.scrollHeight, maxHeight)}px`;
+    sendButton.style.height = `${input.offsetHeight}px`;
   }
 
   function hasActiveRun() {
