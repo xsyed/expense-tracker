@@ -9,6 +9,7 @@ from django.db.models.functions import TruncMonth
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 
+from .category_group_rollups import build_expense_group_rollups
 from .models import CategoryBudget, Transaction
 from .models import User as UserModel
 
@@ -39,6 +40,7 @@ def category_spend_data_view(request: HttpRequest) -> JsonResponse:
             {
                 "available_months": [],
                 "expenses": [],
+                "expense_groups": [],
                 "income": [],
                 "total_expenses": 0.0,
                 "total_income": 0.0,
@@ -85,6 +87,7 @@ def category_spend_data_view(request: HttpRequest) -> JsonResponse:
 
     budgets = CategoryBudget.objects.filter(user=user)
     budget_map: dict[int, float] = {b.category_id: float(b.amount) for b in budgets}
+    expense_groups = build_expense_group_rollups(user, month_start=month_start, month_end=month_end)
 
     expenses = []
     total_expenses = 0.0
@@ -116,6 +119,7 @@ def category_spend_data_view(request: HttpRequest) -> JsonResponse:
         {
             "available_months": available_months,
             "expenses": expenses,
+            "expense_groups": expense_groups,
             "income": income,
             "total_expenses": total_expenses,
             "total_income": total_income,

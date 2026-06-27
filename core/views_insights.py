@@ -10,6 +10,7 @@ from django.db.models import Sum
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 
+from .category_group_rollups import build_expense_group_rollups
 from .goal_progress import debt_payment_transactions
 from .models import CategoryBudget, ExpenseMonth, Goal, Transaction
 from .models import User as UserModel
@@ -38,6 +39,7 @@ def budget_data_view(request: HttpRequest) -> JsonResponse:
                 "available_months": [],
                 "selected_month": "",
                 "categories": [],
+                "groups": [],
                 "totals": {"budgeted": 0.0, "spent": 0.0, "remaining": 0.0, "pct_used": 0.0},
                 "total_budget": total_budget,
             }
@@ -57,6 +59,7 @@ def budget_data_view(request: HttpRequest) -> JsonResponse:
     month_end = datetime.date(year + 1, 1, 1) if month == 12 else datetime.date(year, month + 1, 1)  # noqa: PLR2004
 
     budgets = CategoryBudget.objects.filter(user=user).select_related("category").order_by("category__name")
+    groups = build_expense_group_rollups(user, month_start=month_start, month_end=month_end)
 
     if not budgets.exists():
         return JsonResponse(
@@ -64,6 +67,7 @@ def budget_data_view(request: HttpRequest) -> JsonResponse:
                 "available_months": available_months,
                 "selected_month": month_param,
                 "categories": [],
+                "groups": groups,
                 "totals": {"budgeted": 0.0, "spent": 0.0, "remaining": 0.0, "pct_used": 0.0},
                 "total_budget": total_budget,
             }
@@ -112,6 +116,7 @@ def budget_data_view(request: HttpRequest) -> JsonResponse:
             "available_months": available_months,
             "selected_month": month_param,
             "categories": category_data,
+            "groups": groups,
             "totals": {
                 "budgeted": float(total_budgeted),
                 "spent": float(total_spent),

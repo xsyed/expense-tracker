@@ -82,6 +82,17 @@
     contentWrapper.classList.toggle('d-none', state !== 'content');
   }
 
+  function appendMoneyRow(parent, name, total, className) {
+    const row = document.createElement('div');
+    row.className = className;
+    const label = document.createElement('span');
+    label.textContent = name;
+    const amount = document.createElement('span');
+    amount.textContent = fmt(total);
+    row.append(label, amount);
+    parent.appendChild(row);
+  }
+
   function renderData(data) {
     if (data.available_months.length === 0) {
       showState('empty');
@@ -102,31 +113,39 @@
 
     incomeCards.innerHTML = '';
     for (const entry of data.income) {
-      incomeCards.insertAdjacentHTML('beforeend', `
-        <div class="col-md-4 col-lg-3">
-          <div class="card h-100">
-            <div class="card-body">
-              <h6 class="card-title text-muted">${entry.category}</h6>
-              <p class="card-text fs-4 fw-bold mb-0">${fmt(entry.total)}</p>
-            </div>
-          </div>
-        </div>
-      `);
+      const col = document.createElement('div');
+      col.className = 'col-md-4 col-lg-3';
+      const card = document.createElement('div');
+      card.className = 'card h-100';
+      const body = document.createElement('div');
+      body.className = 'card-body';
+      const title = document.createElement('h6');
+      title.className = 'card-title text-muted';
+      title.textContent = entry.category;
+      const total = document.createElement('p');
+      total.className = 'card-text fs-4 fw-bold mb-0';
+      total.textContent = fmt(entry.total);
+      body.append(title, total);
+      card.appendChild(body);
+      col.appendChild(card);
+      incomeCards.appendChild(col);
     }
 
     expenseCards.innerHTML = '';
-    for (const entry of data.expenses) {
-      const dangerClass = entry.over_budget ? ' bg-danger-subtle' : '';
-      expenseCards.insertAdjacentHTML('beforeend', `
-        <div class="col-md-4 col-lg-3">
-          <div class="card${dangerClass} h-100">
-            <div class="card-body">
-              <h6 class="card-title text-muted">${entry.category}</h6>
-              <p class="card-text fs-4 fw-bold mb-0">${fmt(entry.total)}</p>
-            </div>
-          </div>
-        </div>
-      `);
+    for (const group of data.expense_groups) {
+      const col = document.createElement('div');
+      col.className = 'col-md-6 col-xl-4';
+      const card = document.createElement('div');
+      card.className = 'card h-100';
+      const body = document.createElement('div');
+      body.className = 'card-body';
+      appendMoneyRow(body, group.group_name, group.spent, 'd-flex justify-content-between gap-3 fw-semibold fs-5');
+      group.categories.forEach(function(category) {
+        appendMoneyRow(body, category.category_name, category.spent, 'd-flex justify-content-between gap-3 small text-muted mt-2 ps-2');
+      });
+      card.appendChild(body);
+      col.appendChild(card);
+      expenseCards.appendChild(col);
     }
 
     summaryIncome.textContent = fmt(data.total_income);

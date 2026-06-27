@@ -8,7 +8,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 
-from .models import Account, Category, CategoryBudget, ExpenseMonth, Goal, GoalContribution
+from .models import Account, Category, CategoryBudget, CategoryGroup, ExpenseMonth, Goal, GoalContribution
 from .models import User as UserModel
 
 User = get_user_model()
@@ -53,20 +53,48 @@ class SignUpForm(forms.Form):
         return User.objects.create_user(email, password)
 
 
+class CategoryGroupForm(forms.ModelForm[CategoryGroup]):
+    class Meta:
+        model = CategoryGroup
+        fields = ["name"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Group name"}),
+        }
+
+    def __init__(self, *args: Any, user: UserModel | None = None, **kwargs: Any) -> None:
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean_name(self) -> str:
+        name: str = self.cleaned_data["name"]
+        name = name.strip()
+        qs = CategoryGroup.objects.filter(user=self.user, name__iexact=name)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("You already have a category group with this name.")
+        return name
+
+
 class CategoryForm(forms.ModelForm[Category]):
     class Meta:
         model = Category
-        fields = ["name", "category_type", "expense_type"]
+        fields = ["name", "category_type", "expense_type", "category_group"]
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Category name"}),
             "category_type": forms.Select(attrs={"class": "form-select"}),
             "expense_type": forms.Select(attrs={"class": "form-select"}),
+            "category_group": forms.Select(attrs={"class": "form-select"}),
         }
 
     def __init__(self, *args: Any, user: UserModel | None = None, **kwargs: Any) -> None:
         self.user = user
         super().__init__(*args, **kwargs)
         self.fields["expense_type"].required = False
+        self.fields["category_group"].required = False
+        category_group_field = cast(forms.ModelChoiceField[CategoryGroup], self.fields["category_group"])
+        category_group_field.queryset = CategoryGroup.objects.filter(user=user).order_by("name")
+        category_group_field.empty_label = "Ungrouped"
 
     def clean_name(self) -> str:
         name: str = self.cleaned_data["name"]
@@ -82,11 +110,15 @@ class CategoryForm(forms.ModelForm[Category]):
         cleaned_data: dict[str, Any] = super().clean() or {}
         category_type = cleaned_data.get("category_type")
         expense_type = cleaned_data.get("expense_type")
+        category_group = cleaned_data.get("category_group")
 
         if category_type == "expense" and not expense_type:
             cleaned_data["expense_type"] = "variable"
         elif category_type == "income":
             cleaned_data["expense_type"] = expense_type or "variable"
+            cleaned_data["category_group"] = None
+        elif category_group is not None and (self.user is None or category_group.user_id != self.user.id):
+            self.add_error("category_group", "Invalid category group.")
 
         return cleaned_data
 

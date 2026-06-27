@@ -102,7 +102,20 @@
 
       <div class="card border-0 shadow-sm mt-3">
         <div class="card-body">
+          <h6 class="card-title fw-semibold mb-3">Spending by Category Group</h6>
+          <div id="budget-group-empty" class="text-center text-muted py-4 d-none">
+            No group spend to display.
+          </div>
+          <div id="budget-group-list" class="vstack gap-3"></div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mt-3">
+        <div class="card-body">
           <h6 class="card-title fw-semibold mb-3">Budget vs. Actual Spending</h6>
+          <div id="budget-chart-empty" class="text-center text-muted py-4 d-none">
+            No category budget data to display.
+          </div>
           <div id="budget-chart"></div>
         </div>
       </div>
@@ -506,6 +519,17 @@
   }
 
   function renderBudgetChart(categories) {
+    const emptyEl = document.getElementById('budget-chart-empty');
+    if (categories.length === 0) {
+      emptyEl.classList.remove('d-none');
+      if (budgetChart) {
+        budgetChart.destroy();
+        budgetChart = null;
+      }
+      return;
+    }
+    emptyEl.classList.add('d-none');
+
     const colors     = categories.map(function(c) { return statusColor(c.pct_used); });
     const seriesData = categories.map(function(c) {
       return {
@@ -570,6 +594,44 @@
       budgetChart = new ApexCharts(document.getElementById('budget-chart'), options);
       budgetChart.render();
     }
+  }
+
+  function renderGroupSpend(groups) {
+    const listEl = document.getElementById('budget-group-list');
+    const emptyEl = document.getElementById('budget-group-empty');
+    listEl.replaceChildren();
+    if (groups.length === 0) {
+      emptyEl.classList.remove('d-none');
+      return;
+    }
+    emptyEl.classList.add('d-none');
+    groups.forEach(function(group) {
+      const item = document.createElement('div');
+      item.className = 'border-bottom pb-3';
+
+      const top = document.createElement('div');
+      top.className = 'd-flex justify-content-between gap-3';
+      const title = document.createElement('div');
+      title.className = 'fw-semibold';
+      title.textContent = group.group_name;
+      const total = document.createElement('div');
+      total.className = 'fw-semibold';
+      total.textContent = fmtCurrency(group.spent);
+      top.append(title, total);
+      item.appendChild(top);
+
+      group.categories.forEach(function(category) {
+        const row = document.createElement('div');
+        row.className = 'd-flex justify-content-between gap-3 small text-muted mt-1 ps-2';
+        const name = document.createElement('div');
+        name.textContent = category.category_name;
+        const spent = document.createElement('div');
+        spent.textContent = fmtCurrency(category.spent);
+        row.append(name, spent);
+        item.appendChild(row);
+      });
+      listEl.appendChild(item);
+    });
   }
 
   function renderHealthDonut(categories) {
@@ -758,7 +820,7 @@
         syncMonthSelect(data.selected_month);
         document.getElementById('budget-loading').classList.add('d-none');
 
-        if (data.categories.length === 0) {
+        if (data.categories.length === 0 && data.groups.length === 0) {
           document.getElementById('budget-empty').classList.remove('d-none');
           renderHealthDonut([]);
           fetchBurnRateData(data.selected_month);
@@ -767,6 +829,7 @@
 
         document.getElementById('budget-content').classList.remove('d-none');
         renderSummaryCards(data.totals);
+        renderGroupSpend(data.groups);
         renderBudgetChart(data.categories);
         renderHealthDonut(data.categories);
         fetchBurnRateData(data.selected_month);

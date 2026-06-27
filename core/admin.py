@@ -8,6 +8,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     Category,
     CategoryBudget,
+    CategoryGroup,
     ExpenseMonth,
     Goal,
     GoalContribution,
@@ -41,6 +42,14 @@ class ExpenseMonthAdmin(admin.ModelAdmin[ExpenseMonth]):
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin[Category]):
+    list_display = ("name", "user", "category_type", "category_group", "created_at")
+    list_filter = ("user", "category_type", "category_group")
+    search_fields = ("name", "user__email")
+    ordering = ("user", "name")
+
+
+@admin.register(CategoryGroup)
+class CategoryGroupAdmin(admin.ModelAdmin[CategoryGroup]):
     list_display = ("name", "user", "created_at")
     list_filter = ("user",)
     search_fields = ("name", "user__email")

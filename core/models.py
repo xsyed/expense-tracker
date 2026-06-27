@@ -62,6 +62,25 @@ DEFAULT_CATEGORIES = [
 ]
 
 
+class CategoryGroup(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="category_groups",
+    )
+    name = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "category group"
+        verbose_name_plural = "category groups"
+        unique_together = ("user", "name")
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Category(models.Model):
     CATEGORY_TYPES = [("expense", "Expense"), ("income", "Income")]
     EXPENSE_TYPES = [("fixed", "Fixed"), ("variable", "Variable"), ("savings_transfer", "Savings Transfer")]
@@ -74,6 +93,13 @@ class Category(models.Model):
     name = models.CharField(max_length=100)
     category_type = models.CharField(max_length=7, choices=CATEGORY_TYPES, default="expense")
     expense_type = models.CharField(max_length=17, choices=EXPENSE_TYPES, default="variable")
+    category_group = models.ForeignKey(
+        CategoryGroup,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="categories",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -84,6 +110,11 @@ class Category(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        if self.category_type == "income":
+            self.category_group = None
+        super().save(*args, **kwargs)
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)

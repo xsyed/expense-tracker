@@ -3,14 +3,17 @@ from __future__ import annotations
 import datetime
 import json
 import math
+from typing import cast
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
+from .category_group_rollups import build_expense_group_rollups
 from .forms import ExpenseMonthCreateForm, ExpenseMonthEditForm
 from .models import Account, Category, ExpenseMonth, UserGridPreference
+from .models import User as UserModel
 from .month_budget_rows import build_month_budget_rows
 
 
@@ -58,8 +61,9 @@ def month_create_view(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def month_detail_view(request: HttpRequest, pk: int) -> HttpResponse:
+    user = cast(UserModel, request.user)
     grid_columns = ["date", "description", "amount", "account_name", "transaction_type", "category_name"]
-    expense_month = get_object_or_404(ExpenseMonth, pk=pk, user=request.user)
+    expense_month = get_object_or_404(ExpenseMonth, pk=pk, user=user)
     transactions_data = [
         {
             "id": tx.id,
@@ -75,18 +79,19 @@ def month_detail_view(request: HttpRequest, pk: int) -> HttpResponse:
         }
         for tx in expense_month.transactions.select_related("category", "account").all()
     ]
-    categories_data = [{"id": c.id, "name": c.name} for c in Category.objects.filter(user=request.user)]
-    accounts_data = [{"id": a.id, "name": a.name} for a in Account.objects.filter(user=request.user)]
+    categories_data = [{"id": c.id, "name": c.name} for c in Category.objects.filter(user=user)]
+    accounts_data = [{"id": a.id, "name": a.name} for a in Account.objects.filter(user=user)]
     budget_rows = build_month_budget_rows(expense_month)
+    category_group_rows = build_expense_group_rollups(user, expense_month=expense_month)
     defaults = {col: True for col in grid_columns}
     defaults["account_name"] = False
     defaults["transaction_type"] = False
     pref, _ = UserGridPreference.objects.get_or_create(
-        user=request.user,
+        user=user,
         defaults={"column_visibility": defaults},
     )
     visibility = {**defaults, **pref.column_visibility}
-    recent_months = list(ExpenseMonth.objects.filter(user=request.user).order_by("-month")[:6])
+    recent_months = list(ExpenseMonth.objects.filter(user=user).order_by("-month")[:6])
     return render(
         request,
         "months/detail.html",
@@ -98,6 +103,8 @@ def month_detail_view(request: HttpRequest, pk: int) -> HttpResponse:
             "accounts_json": json.dumps(accounts_data),
             "budget_rows": budget_rows,
             "budget_rows_json": json.dumps(budget_rows),
+            "category_group_rows": category_group_rows,
+            "category_group_rows_json": json.dumps(category_group_rows),
             "column_visibility_json": json.dumps(visibility),
         },
     )

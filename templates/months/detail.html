@@ -115,6 +115,30 @@
         </a>
         <div class="mt-3">
           <div class="d-flex align-items-center justify-content-between mb-2">
+            <h6 class="mb-0 small text-uppercase text-muted">Category Groups</h6>
+            <span class="badge text-bg-light">{{ category_group_rows|length }}</span>
+          </div>
+          <div id="category-group-panel">
+            {% for group in category_group_rows %}
+            <div class="category-budget-row py-2">
+              <div class="d-flex justify-content-between gap-2">
+                <div class="small fw-semibold text-truncate">{{ group.group_name }}</div>
+                <div class="small fw-semibold">${{ group.spent|floatformat:2 }}</div>
+              </div>
+              {% for category in group.categories %}
+              <div class="d-flex justify-content-between gap-2 mt-1 ps-2">
+                <div class="text-muted small text-truncate">{{ category.category_name }}</div>
+                <div class="text-muted small">${{ category.spent|floatformat:2 }}</div>
+              </div>
+              {% endfor %}
+            </div>
+            {% empty %}
+            <div class="text-muted small py-2">No group spend yet.</div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="mt-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
             <h6 class="mb-0 small text-uppercase text-muted">Category Budgets</h6>
             <span class="badge text-bg-light">{{ budget_rows|length }}</span>
           </div>
@@ -190,6 +214,7 @@
   const categoriesData   = {{ categories_json|safe }};
   const accountsData     = {{ accounts_json|safe }};
   const budgetRows       = {{ budget_rows_json|safe }};
+  const categoryGroupRows = {{ category_group_rows_json|safe }};
   const monthId          = {{ expense_month.pk }};
   const columnVisibilityPrefs = {{ column_visibility_json|safe }};
   const GRID_COLUMNS = ['date', 'description', 'amount', 'account_name', 'transaction_type', 'category_name'];
@@ -350,6 +375,46 @@
     });
   }
 
+  function renderCategoryGroupRows(rows) {
+    const panel = document.getElementById('category-group-panel');
+    if (!panel || !rows) return;
+    panel.replaceChildren();
+    if (!rows.length) {
+      const empty = document.createElement('div');
+      empty.className = 'text-muted small py-2';
+      empty.textContent = 'No group spend yet.';
+      panel.appendChild(empty);
+      return;
+    }
+    rows.forEach(group => {
+      const item = document.createElement('div');
+      item.className = 'category-budget-row py-2';
+      const top = document.createElement('div');
+      top.className = 'd-flex justify-content-between gap-2';
+      const name = document.createElement('div');
+      name.className = 'small fw-semibold text-truncate';
+      name.textContent = group.group_name;
+      const spent = document.createElement('div');
+      spent.className = 'small fw-semibold';
+      spent.textContent = formatCurrency(group.spent);
+      top.append(name, spent);
+      item.appendChild(top);
+      group.categories.forEach(category => {
+        const row = document.createElement('div');
+        row.className = 'd-flex justify-content-between gap-2 mt-1 ps-2';
+        const categoryName = document.createElement('div');
+        categoryName.className = 'text-muted small text-truncate';
+        categoryName.textContent = category.category_name;
+        const categorySpent = document.createElement('div');
+        categorySpent.className = 'text-muted small';
+        categorySpent.textContent = formatCurrency(category.spent);
+        row.append(categoryName, categorySpent);
+        item.appendChild(row);
+      });
+      panel.appendChild(item);
+    });
+  }
+
   // ── Error toast ──────────────────────────────────────────────────────────
   function showError(message) {
     const container = document.getElementById('toast-container');
@@ -422,6 +487,7 @@
         gridApi.applyTransaction({ add: [result.transaction] });
         updateSummary(result.summary);
         renderBudgetRows(result.budget_rows);
+        renderCategoryGroupRows(result.category_group_rows);
         const badge = document.getElementById('tx-count');
         if (badge) badge.textContent = parseInt(badge.textContent, 10) + 1;
       } else {
@@ -479,6 +545,7 @@
         gridApi.applyTransaction({ remove: selectedRows });
         updateSummary(data.summary);
         renderBudgetRows(data.budget_rows);
+        renderCategoryGroupRows(data.category_group_rows);
         const badge = document.getElementById('tx-count');
         if (badge) badge.textContent = parseInt(badge.textContent, 10) - data.deleted_count;
         bulkDeleteBtn.classList.add('d-none');
@@ -554,6 +621,7 @@
         gridApi.applyTransaction({ update: [result.transaction] });
         updateSummary(result.summary);
         renderBudgetRows(result.budget_rows);
+        renderCategoryGroupRows(result.category_group_rows);
       } else {
         showError(result.error || 'Save failed.');
         gridApi.applyTransaction({ update: [originalData] });
@@ -873,10 +941,12 @@
     document.addEventListener('DOMContentLoaded', () => {
       initializeSummaryCards();
       renderBudgetRows(budgetRows);
+      renderCategoryGroupRows(categoryGroupRows);
     });
   } else {
     initializeSummaryCards();
     renderBudgetRows(budgetRows);
+    renderCategoryGroupRows(categoryGroupRows);
   }
 
   // ── Grid initialisation ───────────────────────────────────────────────────

@@ -11,6 +11,7 @@ from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
 
+from .category_group_rollups import build_expense_group_rollups
 from .merchant_utils import normalize_merchant
 from .models import Account, Category, ExpenseMonth, MerchantRule, Transaction, UserGridPreference
 from .month_budget_rows import build_month_budget_rows
@@ -128,6 +129,7 @@ def transaction_update_view(request: HttpRequest, month_id: int, tx_id: int) -> 
             "transaction": tx_data,
             "summary": _month_summary(month),
             "budget_rows": build_month_budget_rows(month),
+            "category_group_rows": build_expense_group_rollups(month.user, expense_month=month),
         }
     )
 
@@ -228,6 +230,7 @@ def transaction_create_view(request: HttpRequest, month_id: int) -> JsonResponse
             "transaction": tx_data,
             "summary": _month_summary(month),
             "budget_rows": build_month_budget_rows(month),
+            "category_group_rows": build_expense_group_rollups(month.user, expense_month=month),
         }
     )
 
@@ -239,7 +242,12 @@ def transaction_delete_view(request: HttpRequest, month_id: int, tx_id: int) -> 
     transaction = get_object_or_404(Transaction, id=tx_id, expense_month=month)
     transaction.delete()
     return JsonResponse(
-        {"success": True, "summary": _month_summary(month), "budget_rows": build_month_budget_rows(month)}
+        {
+            "success": True,
+            "summary": _month_summary(month),
+            "budget_rows": build_month_budget_rows(month),
+            "category_group_rows": build_expense_group_rollups(month.user, expense_month=month),
+        }
     )
 
 
@@ -291,5 +299,6 @@ def transaction_bulk_delete_view(request: HttpRequest, month_id: int) -> JsonRes
             "deleted_count": deleted_count,
             "summary": _month_summary(month),
             "budget_rows": build_month_budget_rows(month),
+            "category_group_rows": build_expense_group_rollups(month.user, expense_month=month),
         }
     )
