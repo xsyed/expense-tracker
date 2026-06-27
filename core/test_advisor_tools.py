@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import ClassVar, cast
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
 
 from core.advisor_memory_tools import create_memory_suggestion
@@ -109,6 +110,20 @@ class AdvisorToolsTests(TestCase):
         self.assertEqual(suggestion.conversation, conversation)
         self.assertEqual(suggestion.status, AdvisorMemorySuggestion.STATUS_PENDING)
         self.assertFalse(AdvisorMemory.objects.filter(user=self.user, key="cash_buffer_preference").exists())
+
+    def test_create_memory_suggestion_rejects_transaction_derived_context(self) -> None:
+        conversation = AdvisorConversation.objects.create(user=self.user, title="Memory chat")
+
+        with self.assertRaises(ValidationError):
+            create_memory_suggestion(
+                self.user,
+                conversation=conversation,
+                key="salary",
+                suggested_value="Monthly salary is $5000 inferred from transactions.",
+                rationale="Calculated from payroll transactions.",
+            )
+
+        self.assertFalse(AdvisorMemorySuggestion.objects.filter(user=self.user, key="salary").exists())
 
     def test_recent_spending_brief_supports_date_ranges_caps_evidence_and_isolates_users(self) -> None:
         grocery = self._category("Grocery", expense_type="variable")

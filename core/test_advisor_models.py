@@ -133,12 +133,27 @@ class AdvisorDomainModelTests(TestCase):
             value="Gas station 42.00",
             source=AdvisorMemory.SOURCE_MANUAL,
         )
+        housing_context = AdvisorMemory(
+            user=self.user,
+            key="housing_context",
+            value="Renting a one-bedroom apartment.",
+            source=AdvisorMemory.SOURCE_MANUAL,
+        )
+        rent_amount = AdvisorMemory(
+            user=self.user,
+            key="monthly_rent",
+            value="Rent is $1200 inferred from transactions.",
+            source=AdvisorMemory.SOURCE_MANUAL,
+        )
 
         self.assertEqual(memory.user, self.user)
         self.assertEqual(memory.source, AdvisorMemory.SOURCE_MANUAL)
         self.assertIn((AdvisorMemory.SOURCE_ACCEPTED_SUGGESTION, "Accepted suggestion"), AdvisorMemory.SOURCE_CHOICES)
+        housing_context.full_clean()
         with self.assertRaises(ValidationError):
             transaction_memory.full_clean()
+        with self.assertRaises(ValidationError):
+            rent_amount.full_clean()
 
     def test_memory_source_choices_are_limited(self) -> None:
         memory = AdvisorMemory(

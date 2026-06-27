@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 from decimal import Decimal
 from typing import Literal, TypedDict, Union, cast
 
@@ -54,6 +55,23 @@ CALCULATION_TOOL_NAMES = frozenset(
         "convert_currency",
     }
 )
+_BASELINE_APP_DATA_TERMS = (
+    "starter budget",
+    "starter data",
+    "first request",
+    "get started",
+    "from the app",
+    "app data",
+    "app itself",
+    "ask the app",
+    "use the app",
+    "use my app",
+    "use my data",
+    "existing data",
+    "stored data",
+    "monthly numbers",
+    "budget template",
+)
 
 
 class ToolTraceEntry(TypedDict, total=False):
@@ -90,7 +108,11 @@ def process_advisor_run(*, run_id: int, client: OpenRouterClient | None = None) 
 
     try:
         _save_partial(run, "Planning advisor answer...")
-        tool_calls = plan_advisor_tools(client=effective_client, user_message=run.user_message.content)
+        planned_tool_calls = plan_advisor_tools(client=effective_client, user_message=run.user_message.content)
+        tool_calls = _merge_tool_calls(
+            _baseline_app_data_tool_calls(run.user_message.content),
+            planned_tool_calls,
+        )
         _stop_if_canceled(run)
         tool_outputs, tool_trace = _execute_tool_calls(run, tool_calls)
         _save_trace(run, tool_trace)
@@ -183,6 +205,42 @@ class AdvisorRunCanceledError(RuntimeError):
     pass
 
 
+def _baseline_app_data_tool_calls(user_message: str) -> list[ToolCall]:
+    if not _needs_baseline_app_data(user_message):
+        return []
+
+    today = timezone.localdate()
+    return [
+        {"name": "get_user_profile_memory", "arguments": {}},
+        {"name": "get_cash_flow_summary", "arguments": {"months": 6, "end_month": today.isoformat()}},
+        {"name": "get_budget_position", "arguments": {"month": today.isoformat()}},
+        {"name": "get_recurring_obligations", "arguments": {}},
+        {"name": "get_goal_status", "arguments": {"today": today.isoformat()}},
+        {"name": "get_recent_spending_brief", "arguments": {"preset": "this_month"}},
+    ]
+
+
+def _needs_baseline_app_data(user_message: str) -> bool:
+    normalized = " ".join(user_message.lower().split())
+    return any(term in normalized for term in _BASELINE_APP_DATA_TERMS)
+
+
+def _merge_tool_calls(baseline_calls: list[ToolCall], planned_calls: list[ToolCall]) -> list[ToolCall]:
+    merged: list[ToolCall] = []
+    seen: set[tuple[str, str]] = set()
+    for tool_call in [*baseline_calls, *planned_calls]:
+        signature = _tool_call_signature(tool_call)
+        if signature in seen:
+            continue
+        merged.append(tool_call)
+        seen.add(signature)
+    return merged
+
+
+def _tool_call_signature(tool_call: ToolCall) -> tuple[str, str]:
+    return tool_call["name"], json.dumps(tool_call["arguments"], sort_keys=True)
+
+
 def _execute_tool_calls(run: AdvisorRun, tool_calls: list[ToolCall]) -> tuple[list[ToolOutput], list[ToolTraceEntry]]:
     outputs: list[ToolOutput] = []
     trace: list[ToolTraceEntry] = []
@@ -241,16 +299,21 @@ def _execute_summary_tool(*, name: str, arguments: dict[str, JsonValue], user: U
     if name == "get_user_profile_memory":
         return get_user_profile_memory(user, limit=_int_arg(arguments, "limit", 20))
     if name == "get_recent_spending_brief":
+        preset = _preset_arg(arguments, "preset")
+        start_date = _optional_date_arg(arguments, "start_date")
+        end_date = _optional_date_arg(arguments, "end_date")
+        if preset is None and start_date is None and end_date is None:
+            preset = "this_month"
         return get_recent_spending_brief(
             user,
-            preset=_preset_arg(arguments, "preset"),
-            start_date=_optional_date_arg(arguments, "start_date"),
-            end_date=_optional_date_arg(arguments, "end_date"),
+            preset=preset,
+            start_date=start_date,
+            end_date=end_date,
             include_evidence=_bool_arg(arguments, "include_evidence", False),
             evidence_limit=_int_arg(arguments, "evidence_limit", 10),
         )
     if name == "get_budget_position":
-        return get_budget_position(user, month=_date_arg(arguments, "month"))
+        return get_budget_position(user, month=_date_arg(arguments, "month", timezone.localdate()))
     if name == "get_cash_flow_summary":
         return get_cash_flow_summary(
             user,
@@ -352,8 +415,14 @@ def _optional_decimal_arg(arguments: dict[str, JsonValue], name: str) -> Decimal
     return _decimal_arg(arguments, name)
 
 
-def _date_arg(arguments: dict[str, JsonValue], name: str) -> datetime.date:
-    value = _string_arg(arguments, name)
+def _date_arg(arguments: dict[str, JsonValue], name: str, default: datetime.date | None = None) -> datetime.date:
+    value = arguments.get(name)
+    if value is None:
+        if default is not None:
+            return default
+        raise ValueError(f"{name} must be a string.")
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a string.")
     return datetime.date.fromisoformat(value)
 
 

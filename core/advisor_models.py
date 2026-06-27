@@ -5,6 +5,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
+from .advisor_memory_policy import advisor_memory_policy_error
+
 
 class AdvisorConversation(models.Model):
     user = models.ForeignKey(
@@ -123,16 +125,6 @@ class AdvisorMemory(models.Model):
         (SOURCE_MANUAL, "Manual"),
         (SOURCE_ACCEPTED_SUGGESTION, "Accepted suggestion"),
     ]
-    FINANCIAL_RECORD_KEY_PREFIXES = (
-        "account",
-        "budget",
-        "category",
-        "expense_month",
-        "goal",
-        "goal_contribution",
-        "transaction",
-    )
-
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -155,9 +147,9 @@ class AdvisorMemory(models.Model):
 
     def clean(self) -> None:
         super().clean()
-        normalized_key = self.key.lower().replace("-", "_").replace(" ", "_")
-        if normalized_key.startswith(self.FINANCIAL_RECORD_KEY_PREFIXES):
-            raise ValidationError({"key": "Advisor Memory cannot duplicate financial records."})
+        policy_error = advisor_memory_policy_error(key=self.key, value=self.value)
+        if policy_error:
+            raise ValidationError({"key": policy_error})
 
 
 class AdvisorMemorySuggestion(models.Model):
@@ -198,6 +190,13 @@ class AdvisorMemorySuggestion(models.Model):
 
     def clean(self) -> None:
         super().clean()
+        policy_error = advisor_memory_policy_error(
+            key=self.key,
+            value=self.suggested_value,
+            rationale=self.rationale,
+        )
+        if policy_error:
+            raise ValidationError({"suggested_value": policy_error})
         if self.conversation_id and self.user_id != self.conversation.user_id:
             raise ValidationError({"conversation": "Memory suggestion user must own the conversation."})
 

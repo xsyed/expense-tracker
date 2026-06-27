@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -85,13 +86,21 @@
     {% block content %}{% endblock %}
   </main>
 
+  {% if user.is_authenticated %}
+  {% include "advisor/pill.html" %}
+  {% endif %}
+
   <!-- Bootstrap 5 JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    const SCRIPT_PREFIX = '{{ SCRIPT_PREFIX }}';
+    window.SCRIPT_PREFIX = '{{ SCRIPT_PREFIX }}';
+    const SCRIPT_PREFIX = window.SCRIPT_PREFIX;
     document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
     document.querySelectorAll('#toast-container .toast').forEach(el => new bootstrap.Toast(el, { delay: 5000 }).show());
   </script>
+  {% if user.is_authenticated %}
+  <script src="{% static 'js/advisor_pill.js' %}"></script>
+  {% endif %}
   {% block extra_js %}{% endblock %}
 </body>
 </html>

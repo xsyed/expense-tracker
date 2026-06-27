@@ -184,6 +184,73 @@ class AdvisorApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse(AdvisorMemory.objects.filter(user=self.user, key="transaction_summary").exists())
 
+    def test_memory_rejects_transaction_derived_context_without_deleting_existing(self) -> None:
+        memory = AdvisorMemory.objects.create(
+            user=self.user,
+            key="cash_buffer_preference",
+            value="Keep one month in chequing.",
+            source=AdvisorMemory.SOURCE_MANUAL,
+        )
+
+        response = self._post_json(
+            "advisor_memory",
+            {
+                "key": "cash_buffer_preference",
+                "value": "Monthly salary is $5000 inferred from transactions.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        memory.refresh_from_db()
+        self.assertEqual(memory.value, "Keep one month in chequing.")
+
+    def test_memory_endpoint_reflects_suggestion_state_changes(self) -> None:
+        accepted_suggestion = AdvisorMemorySuggestion.objects.create(
+            user=self.user,
+            conversation=self.conversation,
+            key="planning_style",
+            suggested_value="Prefers monthly plans.",
+            rationale="The user asked for monthly planning.",
+        )
+        rejected_suggestion = AdvisorMemorySuggestion.objects.create(
+            user=self.user,
+            conversation=self.conversation,
+            key="tone_preference",
+            suggested_value="Prefers direct answers.",
+            rationale="The user asked for direct answers.",
+        )
+
+        list_response = self.client.get(reverse("advisor_memory"))
+        accept_response = self._post_json("advisor_memory_suggestion_accept", {}, pk=accepted_suggestion.id)
+        reject_response = self.client.post(
+            reverse("advisor_memory_suggestion_reject", kwargs={"pk": rejected_suggestion.id})
+        )
+        refresh_response = self.client.get(reverse("advisor_memory"))
+
+        self.assertEqual(list_response.status_code, 200)
+        pending_ids = {item["id"] for item in list_response.json()["pending_memory_suggestions"]}
+        self.assertEqual(pending_ids, {accepted_suggestion.id, rejected_suggestion.id})
+        self.assertEqual(accept_response.status_code, 200)
+        self.assertEqual(reject_response.status_code, 200)
+        self.assertEqual(refresh_response.json()["pending_memory_suggestions"], [])
+        self.assertEqual(refresh_response.json()["memory"][0]["key"], "planning_style")
+
+    def test_suggestion_accept_rejects_transaction_derived_context_and_keeps_pending(self) -> None:
+        suggestion = AdvisorMemorySuggestion.objects.create(
+            user=self.user,
+            conversation=self.conversation,
+            key="salary",
+            suggested_value="Monthly salary is $5000 inferred from transactions.",
+            rationale="Calculated from payroll transactions.",
+        )
+
+        response = self._post_json("advisor_memory_suggestion_accept", {}, pk=suggestion.id)
+
+        self.assertEqual(response.status_code, 400)
+        suggestion.refresh_from_db()
+        self.assertEqual(suggestion.status, AdvisorMemorySuggestion.STATUS_PENDING)
+        self.assertFalse(AdvisorMemory.objects.filter(user=self.user, key="salary").exists())
+
     def test_suggestion_accept_can_edit_into_approved_memory(self) -> None:
         suggestion = AdvisorMemorySuggestion.objects.create(
             user=self.user,

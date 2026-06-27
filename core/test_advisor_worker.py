@@ -67,6 +67,59 @@ class AdvisorWorkerTests(TestCase):
         self.assertEqual(assistant_message.content, "Direct answer: no.")
         self.assertEqual(assistant_message.linked_run, run)
 
+    @patch("core.advisor_worker.timezone.localdate", return_value=datetime.date(2026, 6, 15))
+    @patch("core.advisor_worker.generate_advisor_answer")
+    @patch("core.advisor_worker.plan_advisor_tools")
+    def test_worker_adds_baseline_app_data_tools_for_starter_requests(
+        self,
+        mock_plan: Mock,
+        mock_answer: Mock,
+        _mock_today: Mock,
+    ) -> None:
+        self.user_message.content = "Can't you get the starter data from the app itself. Ask the app for the data."
+        self.user_message.save(update_fields=["content"])
+        run = self._create_run()
+        mock_plan.return_value = [{"name": "get_user_profile_memory", "arguments": {}}]
+        mock_answer.return_value = AdvisorAnswer(content="Direct answer: app data used.", model="answer-model")
+
+        processed = process_next_advisor_run()
+
+        run.refresh_from_db()
+        self.assertTrue(processed)
+        self.assertEqual(run.status, AdvisorRun.STATUS_COMPLETED)
+        self.assertEqual(
+            [entry["name"] for entry in run.tool_trace],
+            [
+                "get_user_profile_memory",
+                "get_cash_flow_summary",
+                "get_budget_position",
+                "get_recurring_obligations",
+                "get_goal_status",
+                "get_recent_spending_brief",
+            ],
+        )
+
+    @patch("core.advisor_worker.timezone.localdate", return_value=datetime.date(2026, 6, 15))
+    @patch("core.advisor_worker.generate_advisor_answer")
+    @patch("core.advisor_worker.plan_advisor_tools")
+    def test_worker_defaults_budget_position_to_current_month_when_month_is_missing(
+        self,
+        mock_plan: Mock,
+        mock_answer: Mock,
+        _mock_today: Mock,
+    ) -> None:
+        run = self._create_run()
+        mock_plan.return_value = [{"name": "get_budget_position", "arguments": {}}]
+        mock_answer.return_value = AdvisorAnswer(content="Direct answer: budget checked.", model="answer-model")
+
+        processed = process_next_advisor_run()
+
+        run.refresh_from_db()
+        self.assertTrue(processed)
+        self.assertEqual(run.status, AdvisorRun.STATUS_COMPLETED)
+        self.assertEqual(run.tool_trace[0]["name"], "get_budget_position")
+        self.assertEqual(run.tool_trace[0]["status"], "completed")
+
     @patch("core.advisor_worker.plan_advisor_tools", side_effect=RuntimeError("planner unavailable"))
     def test_worker_marks_run_failed_on_exception(self, _mock_plan: Mock) -> None:
         run = self._create_run()

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import datetime
 import json
 from dataclasses import dataclass
 from typing import TypedDict, Union, cast
 
 from django.conf import settings
+from django.utils import timezone
 
 from .advisor_models import AdvisorConversation, AdvisorMessage
 from .advisor_provider import OpenRouterClient, OpenRouterError, OpenRouterMessage, OpenRouterRole
@@ -38,7 +40,32 @@ PLANNER_POLICY = """Choose only from the approved internal tools.
 Return strict JSON with this shape:
 {"tool_calls":[{"name":"tool_name","arguments":{}}]}
 Return {"tool_calls":[]} when no tool is needed.
+Use the Current Date section for current-month and recent-period arguments.
+Use ISO date strings in YYYY-MM-DD format for every date argument.
+When the user asks to use app data, starter data, existing data, or monthly numbers, choose relevant summary tools
+instead of saying app data is unavailable.
 Do not include explanations outside JSON.
+"""
+
+PLANNER_TOOL_SCHEMAS = """Tool argument schemas:
+- get_user_profile_memory: {"limit": integer, optional}
+- get_recent_spending_brief: {"preset": "last_7_days"|"this_month"|"previous_month"} or
+  {"start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "include_evidence": boolean, optional}
+- get_budget_position: {"month": "YYYY-MM-DD"}
+- get_cash_flow_summary: {"months": integer 1-12, "end_month": "YYYY-MM-DD", optional}
+- get_recurring_obligations: {"limit": integer, optional}
+- get_goal_status: {"goal_id": integer, optional, "today": "YYYY-MM-DD", optional}
+- run_affordability_check: {"amount": number, "expected_monthly_surplus": number, optional,
+  "current_available_cash": number, optional, "minimum_reserve": number, optional,
+  "monthly_payment": number, optional, "required_upfront_cash": number, optional}
+- run_emergency_fund_calculation: {"monthly_essential_expenses": number, "required_months": number,
+  "current_emergency_savings": number, optional, "savings_amount_per_period": number, optional,
+  "savings_period": "monthly"|"paycheck", optional, "today": "YYYY-MM-DD", optional}
+- run_large_event_plan: {"target_amount": number, "deadline": "YYYY-MM-DD", optional,
+  "current_saved_amount": number, optional, "planned_savings_per_month": number, optional,
+  "paychecks_per_month": number, optional, "today": "YYYY-MM-DD", optional}
+- convert_currency: {"amount": number, "source_currency": string, "target_currency": string}
+- create_memory_suggestion: {"key": string, "suggested_value": string, "rationale": string}
 """
 
 APPROVED_TOOL_NAMES = frozenset(
@@ -116,10 +143,13 @@ def build_advisor_messages(
     return messages
 
 
-def build_planner_messages(user_message: str) -> list[OpenRouterMessage]:
+def build_planner_messages(user_message: str, *, today: datetime.date | None = None) -> list[OpenRouterMessage]:
+    effective_today = today or timezone.localdate()
     return [
         {"role": "system", "content": PLANNER_POLICY},
         {"role": "system", "content": _section("Approved Tools", sorted(APPROVED_TOOL_NAMES))},
+        {"role": "system", "content": _section("Tool Schemas", PLANNER_TOOL_SCHEMAS)},
+        {"role": "system", "content": _section("Current Date", effective_today.isoformat())},
         {"role": "user", "content": user_message},
     ]
 

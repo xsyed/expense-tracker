@@ -16,6 +16,7 @@ from core.advisor_prompting import (
     PlannerContractError,
     ToolOutput,
     build_advisor_messages,
+    build_planner_messages,
     generate_advisor_answer,
     plan_advisor_tools,
     requires_follow_up_gate,
@@ -95,6 +96,14 @@ class AdvisorPromptingTests(TestCase):
         self.assertIn("Current User Message", messages[-3]["content"])
         self.assertIn("Selected Tool Outputs", messages[-2]["content"])
         self.assertNotIn("Dealer raw transaction that should stay private", joined_content)
+
+    def test_planner_prompt_includes_tool_schemas_and_current_date(self) -> None:
+        messages = build_planner_messages("Use app data for a starter budget.", today=self.today)
+        joined_content = "\n".join(message["content"] for message in messages)
+
+        self.assertIn('get_budget_position: {"month": "YYYY-MM-DD"}', joined_content)
+        self.assertIn("When the user asks to use app data", joined_content)
+        self.assertIn("Current Date:\n2026-06-15", joined_content)
 
     @patch("core.advisor_provider.urllib.request.urlopen")
     def test_openrouter_client_returns_successful_assistant_message(self, mock_urlopen: Mock) -> None:

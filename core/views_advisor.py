@@ -230,16 +230,17 @@ def _upsert_memory(user: UserModel, payload: JsonObject, source: str) -> tuple[A
         empty_memory = AdvisorMemory(user=user, key=key, value=value, source=source)
         return empty_memory, _error_response("Key and value are required.")
 
+    candidate = AdvisorMemory(user=user, key=key, value=value, source=source)
+    try:
+        candidate.clean()
+    except ValidationError as exc:
+        return candidate, JsonResponse({"success": False, "errors": exc.message_dict}, status=400)
+
     memory, _created = AdvisorMemory.objects.update_or_create(
         user=user,
         key=key,
         defaults={"value": value, "source": source},
     )
-    try:
-        memory.full_clean()
-    except ValidationError as exc:
-        memory.delete()
-        return memory, JsonResponse({"success": False, "errors": exc.message_dict}, status=400)
     return memory, None
 
 
