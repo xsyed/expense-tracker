@@ -7,7 +7,6 @@ from django.test import TestCase
 from core.models import (
     AdvisorConversation,
     AdvisorMemory,
-    AdvisorMemorySuggestion,
     AdvisorMessage,
     AdvisorRun,
 )
@@ -123,87 +122,44 @@ class AdvisorDomainModelTests(TestCase):
     def test_memory_stores_user_approved_context_not_financial_records(self) -> None:
         memory = AdvisorMemory.objects.create(
             user=self.user,
-            key="risk_tolerance",
-            value="Prefers conservative cash buffers.",
-            source=AdvisorMemory.SOURCE_MANUAL,
+            content="Prefers conservative cash buffers.",
         )
         transaction_memory = AdvisorMemory(
-            user=self.user,
-            key="transaction_2026_06_01",
-            value="Gas station 42.00",
-            source=AdvisorMemory.SOURCE_MANUAL,
+            user=self.other_user,
+            content="Transaction summary: gas station 42.00",
         )
         housing_context = AdvisorMemory(
-            user=self.user,
-            key="housing_context",
-            value="Renting a one-bedroom apartment.",
-            source=AdvisorMemory.SOURCE_MANUAL,
+            user=self.other_user,
+            content="Renting a one-bedroom apartment.",
         )
         rent_amount = AdvisorMemory(
-            user=self.user,
-            key="monthly_rent",
-            value="Rent is $1200 inferred from transactions.",
-            source=AdvisorMemory.SOURCE_MANUAL,
+            user=self.other_user,
+            content="Rent is $1200 inferred from transactions.",
         )
 
         self.assertEqual(memory.user, self.user)
-        self.assertEqual(memory.source, AdvisorMemory.SOURCE_MANUAL)
-        self.assertIn((AdvisorMemory.SOURCE_ACCEPTED_SUGGESTION, "Accepted suggestion"), AdvisorMemory.SOURCE_CHOICES)
+        self.assertEqual(memory.content, "Prefers conservative cash buffers.")
         housing_context.full_clean()
         with self.assertRaises(ValidationError):
             transaction_memory.full_clean()
         with self.assertRaises(ValidationError):
             rent_amount.full_clean()
 
-    def test_memory_source_choices_are_limited(self) -> None:
+    def test_memory_is_one_document_per_user(self) -> None:
+        AdvisorMemory.objects.create(user=self.user, content="Prefers concise plans.")
         memory = AdvisorMemory(
             user=self.user,
-            key="payday_pattern",
-            value="Paid biweekly.",
-            source="imported_transaction",
+            content="Prefers detailed plans.",
         )
 
         with self.assertRaises(ValidationError):
             memory.full_clean()
 
-    def test_memory_suggestion_resolution_sets_status_and_timestamp(self) -> None:
-        suggestion = AdvisorMemorySuggestion.objects.create(
+    def test_memory_content_hard_cap_is_enforced(self) -> None:
+        memory = AdvisorMemory(
             user=self.user,
-            conversation=self.conversation,
-            key="cash_buffer_preference",
-            suggested_value="Wants at least three months of expenses before large purchases.",
-            rationale="User mentioned discomfort with low emergency reserves.",
-        )
-
-        suggestion.resolve(AdvisorMemorySuggestion.STATUS_ACCEPTED)
-        suggestion.save()
-        suggestion.refresh_from_db()
-
-        self.assertEqual(suggestion.user, self.user)
-        self.assertEqual(suggestion.conversation.user, self.user)
-        self.assertEqual(suggestion.status, AdvisorMemorySuggestion.STATUS_ACCEPTED)
-        self.assertIsNotNone(suggestion.resolved_at)
-
-    def test_memory_suggestion_rejects_cross_user_conversation(self) -> None:
-        suggestion = AdvisorMemorySuggestion(
-            user=self.other_user,
-            conversation=self.conversation,
-            key="cash_buffer_preference",
-            suggested_value="Wants a bigger cash buffer.",
-            rationale="Said large purchases feel risky.",
+            content="x" * (AdvisorMemory.MAX_CONTENT_LENGTH + 1),
         )
 
         with self.assertRaises(ValidationError):
-            suggestion.full_clean()
-
-    def test_memory_suggestion_resolution_requires_terminal_status(self) -> None:
-        suggestion = AdvisorMemorySuggestion(
-            user=self.user,
-            conversation=self.conversation,
-            key="cash_buffer_preference",
-            suggested_value="Wants a bigger cash buffer.",
-            rationale="Said large purchases feel risky.",
-        )
-
-        with self.assertRaises(ValueError):
-            suggestion.resolve(AdvisorMemorySuggestion.STATUS_PENDING)
+            memory.full_clean()

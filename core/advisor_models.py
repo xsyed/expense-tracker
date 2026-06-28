@@ -3,7 +3,6 @@ from __future__ import annotations
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.utils import timezone
 
 from .advisor_memory_policy import advisor_memory_policy_error
 
@@ -119,89 +118,29 @@ class AdvisorRun(models.Model):
 
 
 class AdvisorMemory(models.Model):
-    SOURCE_MANUAL = "manual"
-    SOURCE_ACCEPTED_SUGGESTION = "accepted_suggestion"
-    SOURCE_CHOICES = [
-        (SOURCE_MANUAL, "Manual"),
-        (SOURCE_ACCEPTED_SUGGESTION, "Accepted suggestion"),
-    ]
-    user = models.ForeignKey(
+    MAX_CONTENT_LENGTH = 3000
+
+    user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="advisor_memories",
+        related_name="advisor_memory",
     )
-    key = models.CharField(max_length=100)
-    value = models.TextField()
-    source = models.CharField(max_length=19, choices=SOURCE_CHOICES)
+    content = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["key"]
-        unique_together = ("user", "key")
+        ordering = ["user__email"]
         verbose_name = "advisor memory"
         verbose_name_plural = "advisor memories"
 
     def __str__(self) -> str:
-        return self.key
+        return f"Advisor memory for {self.user}"
 
     def clean(self) -> None:
         super().clean()
-        policy_error = advisor_memory_policy_error(key=self.key, value=self.value)
+        if len(self.content) > self.MAX_CONTENT_LENGTH:
+            raise ValidationError({"content": f"Advisor Memory must be {self.MAX_CONTENT_LENGTH} characters or less."})
+        policy_error = advisor_memory_policy_error(content=self.content)
         if policy_error:
-            raise ValidationError({"key": policy_error})
-
-
-class AdvisorMemorySuggestion(models.Model):
-    STATUS_PENDING = "pending"
-    STATUS_ACCEPTED = "accepted"
-    STATUS_REJECTED = "rejected"
-    STATUS_DISMISSED = "dismissed"
-    STATUS_CHOICES = [
-        (STATUS_PENDING, "Pending"),
-        (STATUS_ACCEPTED, "Accepted"),
-        (STATUS_REJECTED, "Rejected"),
-        (STATUS_DISMISSED, "Dismissed"),
-    ]
-    RESOLVED_STATUSES = {STATUS_ACCEPTED, STATUS_REJECTED, STATUS_DISMISSED}
-
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="advisor_memory_suggestions",
-    )
-    conversation = models.ForeignKey(
-        AdvisorConversation,
-        on_delete=models.CASCADE,
-        related_name="memory_suggestions",
-    )
-    key = models.CharField(max_length=100)
-    suggested_value = models.TextField()
-    rationale = models.TextField()
-    status = models.CharField(max_length=9, choices=STATUS_CHOICES, default=STATUS_PENDING)
-    created_at = models.DateTimeField(auto_now_add=True)
-    resolved_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self) -> str:
-        return self.key
-
-    def clean(self) -> None:
-        super().clean()
-        policy_error = advisor_memory_policy_error(
-            key=self.key,
-            value=self.suggested_value,
-            rationale=self.rationale,
-        )
-        if policy_error:
-            raise ValidationError({"suggested_value": policy_error})
-        if self.conversation_id and self.user_id != self.conversation.user_id:
-            raise ValidationError({"conversation": "Memory suggestion user must own the conversation."})
-
-    def resolve(self, status: str) -> None:
-        if status not in self.RESOLVED_STATUSES:
-            raise ValueError("Memory suggestion must resolve to accepted, rejected, or dismissed.")
-        self.status = status
-        self.resolved_at = timezone.now()
+            raise ValidationError({"content": policy_error})

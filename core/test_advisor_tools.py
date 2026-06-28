@@ -5,10 +5,8 @@ from decimal import Decimal
 from typing import ClassVar, cast
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
 
-from core.advisor_memory_tools import create_memory_suggestion
 from core.advisor_tools import (
     get_budget_position,
     get_cash_flow_summary,
@@ -19,9 +17,7 @@ from core.advisor_tools import (
 )
 from core.models import (
     Account,
-    AdvisorConversation,
     AdvisorMemory,
-    AdvisorMemorySuggestion,
     Category,
     CategoryBudget,
     CategoryGroup,
@@ -74,75 +70,17 @@ class AdvisorToolsTests(TestCase):
     def test_user_profile_memory_returns_only_approved_user_memory(self) -> None:
         AdvisorMemory.objects.create(
             user=self.user,
-            key="cash_buffer_preference",
-            value="Wants three months of expenses before large purchases.",
-            source=AdvisorMemory.SOURCE_MANUAL,
+            content="Wants three months of expenses before large purchases.",
         )
         AdvisorMemory.objects.create(
             user=self.other_user,
-            key="cash_buffer_preference",
-            value="Other user's preference.",
-            source=AdvisorMemory.SOURCE_MANUAL,
+            content="Other user's preference.",
         )
 
         payload = get_user_profile_memory(self.user)
 
-        self.assertEqual(payload["count"], 1)
-        items = _payload_list(payload, "items")
-        self.assertEqual(items[0]["key"], "cash_buffer_preference")
-        self.assertEqual(items[0]["value"], "Wants three months of expenses before large purchases.")
-
-    def test_create_memory_suggestion_creates_inactive_pending_suggestion_only(self) -> None:
-        conversation = AdvisorConversation.objects.create(user=self.user, title="Memory chat")
-
-        payload = create_memory_suggestion(
-            self.user,
-            conversation=conversation,
-            key="cash_buffer_preference",
-            suggested_value="Wants three months of expenses before large purchases.",
-            rationale="The user stated this preference.",
-        )
-
-        suggestion = AdvisorMemorySuggestion.objects.get()
-        self.assertEqual(payload["status"], AdvisorMemorySuggestion.STATUS_PENDING)
-        self.assertFalse(payload["active"])
-        self.assertEqual(suggestion.user, self.user)
-        self.assertEqual(suggestion.conversation, conversation)
-        self.assertEqual(suggestion.status, AdvisorMemorySuggestion.STATUS_PENDING)
-        self.assertFalse(AdvisorMemory.objects.filter(user=self.user, key="cash_buffer_preference").exists())
-
-    def test_create_memory_suggestion_rejects_transaction_derived_context(self) -> None:
-        conversation = AdvisorConversation.objects.create(user=self.user, title="Memory chat")
-
-        with self.assertRaises(ValidationError):
-            create_memory_suggestion(
-                self.user,
-                conversation=conversation,
-                key="salary",
-                suggested_value="Monthly salary is $5000 inferred from transactions.",
-                rationale="Calculated from payroll transactions.",
-            )
-
-        self.assertFalse(AdvisorMemorySuggestion.objects.filter(user=self.user, key="salary").exists())
-
-    def test_create_memory_suggestion_rejects_protocol_context(self) -> None:
-        conversation = AdvisorConversation.objects.create(user=self.user, title="Memory chat")
-
-        with self.assertRaises(ValidationError):
-            create_memory_suggestion(
-                self.user,
-                conversation=conversation,
-                key="assistant_recommended_memory_preference",
-                suggested_value="Use strict JSON tool-call responses only, with approved internal tools.",
-                rationale="This matches the interaction protocol required in the current conversation.",
-            )
-
-        self.assertFalse(
-            AdvisorMemorySuggestion.objects.filter(
-                user=self.user,
-                key="assistant_recommended_memory_preference",
-            ).exists()
-        )
+        self.assertEqual(payload["content"], "Wants three months of expenses before large purchases.")
+        self.assertIsNotNone(payload["updated_at"])
 
     def test_recent_spending_brief_supports_date_ranges_caps_evidence_and_isolates_users(self) -> None:
         grocery = self._category("Grocery", expense_type="variable")

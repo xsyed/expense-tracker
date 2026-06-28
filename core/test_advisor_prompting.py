@@ -16,9 +16,12 @@ from core.advisor_prompting import (
     PlannerContractError,
     ToolOutput,
     build_advisor_messages,
+    build_memory_rewrite_messages,
     build_planner_messages,
     generate_advisor_answer,
+    parse_memory_rewrite,
     plan_advisor_tools,
+    rewrite_advisor_memory,
 )
 from core.advisor_provider import OpenRouterClient, OpenRouterError, OpenRouterMessage, OpenRouterResponse
 from core.models import Account, Category, ExpenseMonth, Transaction
@@ -30,6 +33,7 @@ class FakeOpenRouterClient(OpenRouterClient):
     def __init__(self, response: OpenRouterResponse) -> None:
         self.response = response
         self.called = False
+        self.temperature: float | None = None
 
     def chat_completion(
         self,
@@ -39,6 +43,7 @@ class FakeOpenRouterClient(OpenRouterClient):
         temperature: float = 0.2,
     ) -> OpenRouterResponse:
         self.called = True
+        self.temperature = temperature
         return self.response
 
 
@@ -90,7 +95,7 @@ class AdvisorPromptingTests(TestCase):
         )
         joined_content = "\n".join(message["content"] for message in messages)
 
-        self.assertIn("Approved Advisor Memory", messages[1]["content"])
+        self.assertIn("Advisor Memory", messages[1]["content"])
         self.assertIn("Compact Conversation Summary", messages[2]["content"])
         self.assertIn("Current User Message", messages[-3]["content"])
         self.assertIn("Selected Tool Outputs", messages[-2]["content"])
@@ -100,15 +105,16 @@ class AdvisorPromptingTests(TestCase):
         messages = build_planner_messages(
             "Use app data for a starter budget.",
             today=self.today,
-            approved_memory={"items": [{"key": "planning_style", "value": "Prefers concise answers."}]},
+            memory_document={"content": "Prefers concise answers."},
         )
         joined_content = "\n".join(message["content"] for message in messages)
 
         self.assertIn('get_budget_position: {"month": "YYYY-MM-DD"}', joined_content)
-        self.assertIn("When the user asks to use app data", joined_content)
-        self.assertIn("Approved Advisor Memory", joined_content)
+        self.assertIn("When the user asks about stored financial data", joined_content)
+        self.assertIn("Memory Document", joined_content)
         self.assertIn("Prefers concise answers", joined_content)
         self.assertIn("Current Date:\n2026-06-15", joined_content)
+        self.assertNotIn("create_memory_suggestion", joined_content)
 
     @patch("core.advisor_provider.urllib.request.urlopen")
     def test_openrouter_client_returns_successful_assistant_message(self, mock_urlopen: Mock) -> None:
@@ -237,3 +243,49 @@ class AdvisorPromptingTests(TestCase):
         self.assertTrue(client.called)
         self.assertFalse(answer.follow_up_required)
         self.assertEqual(answer.content, "Direct answer: no.")
+
+    def test_memory_rewrite_uses_planner_model_temperature_zero(self) -> None:
+        client = FakeOpenRouterClient(
+            OpenRouterResponse(
+                content=json.dumps({"content": "Prefers concise monthly plans."}),
+                model="planner-model",
+                raw={},
+            )
+        )
+
+        content = rewrite_advisor_memory(
+            client=client,
+            conversation=self.conversation,
+            current_user_message=self.current_message,
+            previous_memory="Prefers concise answers.",
+            final_answer="Direct answer.",
+            tool_outputs=[],
+        )
+
+        self.assertTrue(client.called)
+        self.assertEqual(client.temperature, 0)
+        self.assertEqual(content, "Prefers concise monthly plans.")
+
+    def test_memory_rewrite_prompt_contains_required_context(self) -> None:
+        messages = build_memory_rewrite_messages(
+            conversation=self.conversation,
+            current_user_message=self.current_message,
+            previous_memory="Prefers concise answers.",
+            final_answer="Direct answer.",
+            tool_outputs=[{"name": "get_budget_position", "output": {"total": 10}}],
+        )
+        joined_content = "\n".join(message["content"] for message in messages)
+
+        self.assertIn("Previous Memory Document", joined_content)
+        self.assertIn("Current User Message", joined_content)
+        self.assertIn("Final Answer", joined_content)
+        self.assertIn("Recent Conversation Context", joined_content)
+        self.assertIn("Selected Tool Outputs", joined_content)
+
+    def test_memory_rewrite_rejects_invalid_or_unsafe_content(self) -> None:
+        with self.assertRaises(ValueError):
+            parse_memory_rewrite("not json")
+        with self.assertRaises(ValueError):
+            parse_memory_rewrite(json.dumps({"content": "Monthly salary is $5000 inferred from transactions."}))
+        with self.assertRaises(ValueError):
+            parse_memory_rewrite(json.dumps({"content": "x" * (3001)}))

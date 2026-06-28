@@ -278,9 +278,9 @@ class AdvisorPillUiTests(TestCase):
         self.assertContains(response, "last 7 days brief")
         self.assertContains(response, 'id="advisor-fullscreen-toggle"')
         self.assertContains(response, 'id="advisor-memory-tab"')
-        self.assertContains(response, 'id="advisor-memory-form"')
-        self.assertContains(response, "Approved Advisor Memory")
-        self.assertContains(response, "Pending suggestions stay inactive")
+        self.assertContains(response, "Advisor Memory")
+        self.assertContains(response, 'id="advisor-memory-content"')
+        self.assertNotContains(response, "Pending suggestions stay inactive")
         self.assertNotContains(response, "stored financial records")
 
     def test_insights_page_includes_advisor_pill(self):

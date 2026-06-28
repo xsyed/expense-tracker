@@ -277,10 +277,6 @@
   }
 
   .advisor-fullscreen .advisor-memory-panel {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-content: start;
-    column-gap: 1rem;
-    display: grid;
     padding: 1.25rem clamp(1rem, 4vw, 4rem);
   }
 
@@ -317,77 +313,27 @@
     padding: 0.75rem;
   }
 
-  .advisor-memory-actions,
-  .advisor-memory-item-actions,
-  .advisor-suggestion-actions {
+  .advisor-memory-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.4rem;
   }
 
-  .advisor-memory-list,
-  .advisor-suggestion-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-  }
-
-  .advisor-memory-item,
-  .advisor-suggestion-item {
+  .advisor-memory-document {
     border: 1px solid #d8dee8;
     border-radius: 0.5rem;
     background: #fff;
     padding: 0.7rem;
-  }
-
-  .advisor-memory-item-header,
-  .advisor-suggestion-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.75rem;
-    margin-bottom: 0.45rem;
-  }
-
-  .advisor-memory-key,
-  .advisor-suggestion-key {
-    color: #0f172a;
-    font-size: 0.82rem;
-    font-weight: 800;
     overflow-wrap: anywhere;
-  }
-
-  .advisor-memory-value,
-  .advisor-suggestion-value,
-  .advisor-suggestion-rationale {
+    white-space: pre-wrap;
     color: #334155;
     font-size: 0.82rem;
     line-height: 1.4;
-    overflow-wrap: anywhere;
-    white-space: pre-wrap;
   }
 
-  .advisor-suggestion-rationale {
-    color: #64748b;
-    margin-top: 0.45rem;
-  }
-
-  .advisor-suggestion-status {
-    border-radius: 999px;
-    background: #fef3c7;
-    color: #92400e;
-    flex: 0 0 auto;
-    font-size: 0.68rem;
-    font-weight: 800;
-    line-height: 1;
-    padding: 0.25rem 0.45rem;
-    text-transform: uppercase;
-  }
-
-  .advisor-suggestion-edit {
-    display: flex;
-    flex-direction: column;
-    gap: 0.55rem;
+  .advisor-memory-editor {
+    min-height: 14rem;
+    resize: vertical;
   }
 
   .advisor-message {
@@ -646,7 +592,6 @@
         <button id="advisor-memory-tab" class="advisor-tab" type="button" role="tab" aria-selected="false" aria-controls="advisor-memory-panel" data-advisor-tab="memory">
           <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
           Memory
-          <span id="advisor-memory-count" class="advisor-tab-badge d-none" aria-label="Pending memory suggestions">0</span>
         </button>
       </div>
       <select id="advisor-conversation-select" class="advisor-history-select form-select form-select-sm" aria-label="Conversation history">
@@ -680,19 +625,20 @@
       <section class="advisor-memory-section" aria-labelledby="advisor-memory-approved-title">
         <div class="advisor-memory-heading">
           <div>
-            <div id="advisor-memory-approved-title" class="advisor-memory-title">Approved Advisor Memory</div>
+            <div id="advisor-memory-approved-title" class="advisor-memory-title">Advisor Memory</div>
             <div class="advisor-memory-note">Stable preferences and profile details used by Advisor.</div>
           </div>
+          <button id="advisor-memory-edit" class="advisor-icon-btn" type="button" title="Edit memory" aria-label="Edit memory">
+            <i class="bi bi-pencil" aria-hidden="true"></i>
+          </button>
         </div>
 
-        <form id="advisor-memory-form" class="advisor-memory-form">
+        <div id="advisor-memory-document" class="advisor-memory-document" aria-live="polite"></div>
+
+        <form id="advisor-memory-form" class="advisor-memory-form d-none">
           <div class="mb-2">
-            <label class="form-label small fw-bold mb-1" for="advisor-memory-key">Key</label>
-            <input id="advisor-memory-key" class="form-control form-control-sm" type="text" maxlength="100" autocomplete="off" placeholder="cash_buffer_preference">
-          </div>
-          <div class="mb-2">
-            <label class="form-label small fw-bold mb-1" for="advisor-memory-value">Value</label>
-            <textarea id="advisor-memory-value" class="form-control form-control-sm" rows="3" maxlength="10000" placeholder="Prefers a two-month cash buffer before large purchases"></textarea>
+            <label class="form-label small fw-bold mb-1" for="advisor-memory-content">Memory Document</label>
+            <textarea id="advisor-memory-content" class="advisor-memory-editor form-control form-control-sm" rows="8" maxlength="3000"></textarea>
           </div>
           <div class="advisor-memory-actions">
             <button id="advisor-memory-save" class="btn btn-sm btn-primary" type="submit">
@@ -702,18 +648,6 @@
             <button id="advisor-memory-cancel" class="btn btn-sm btn-outline-secondary d-none" type="button">Cancel</button>
           </div>
         </form>
-
-        <div id="advisor-memory-list" class="advisor-memory-list" aria-live="polite"></div>
-      </section>
-
-      <section class="advisor-memory-section" aria-labelledby="advisor-memory-suggestions-title">
-        <div class="advisor-memory-heading">
-          <div>
-            <div id="advisor-memory-suggestions-title" class="advisor-memory-title">Suggestions</div>
-            <div class="advisor-memory-note">Pending suggestions stay inactive until accepted.</div>
-          </div>
-        </div>
-        <div id="advisor-memory-suggestions" class="advisor-suggestion-list" aria-live="polite"></div>
       </section>
     </div>
   </section>

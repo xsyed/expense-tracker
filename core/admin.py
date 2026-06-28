@@ -8,7 +8,6 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     AdvisorConversation,
     AdvisorMemory,
-    AdvisorMemorySuggestion,
     AdvisorMessage,
     AdvisorRun,
     Category,
@@ -129,15 +128,7 @@ class AdvisorRunAdmin(admin.ModelAdmin[AdvisorRun]):
 
 @admin.register(AdvisorMemory)
 class AdvisorMemoryAdmin(admin.ModelAdmin[AdvisorMemory]):
-    list_display = ("user", "key", "source", "created_at", "updated_at")
-    list_filter = ("source", "created_at")
-    search_fields = ("user__email", "key", "value")
+    list_display = ("user", "created_at", "updated_at")
+    list_filter = ("created_at", "updated_at")
+    search_fields = ("user__email", "content")
     readonly_fields = ("created_at", "updated_at")
-
-
-@admin.register(AdvisorMemorySuggestion)
-class AdvisorMemorySuggestionAdmin(admin.ModelAdmin[AdvisorMemorySuggestion]):
-    list_display = ("user", "conversation", "key", "status", "created_at", "resolved_at")
-    list_filter = ("status", "created_at", "resolved_at")
-    search_fields = ("user__email", "conversation__title", "key", "suggested_value", "rationale")
-    readonly_fields = ("created_at", "resolved_at")

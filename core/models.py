@@ -13,7 +13,6 @@ from . import advisor_models
 
 AdvisorConversation = advisor_models.AdvisorConversation
 AdvisorMemory = advisor_models.AdvisorMemory
-AdvisorMemorySuggestion = advisor_models.AdvisorMemorySuggestion
 AdvisorMessage = advisor_models.AdvisorMessage
 AdvisorRun = advisor_models.AdvisorRun
 

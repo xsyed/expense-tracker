@@ -84,4 +84,4 @@ def _needs_baseline_app_data(user: UserModel, user_message: str) -> bool:
 
 
 def _has_approved_memory(user: UserModel) -> bool:
-    return AdvisorMemory.objects.filter(user=user).exists()
+    return AdvisorMemory.objects.filter(user=user).exclude(content="").exists()

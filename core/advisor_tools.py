@@ -21,7 +21,6 @@ Confidence = Literal["low", "medium", "high"]
 _CATEGORY_CAP = 12
 _EVIDENCE_CAP = 10
 _GOAL_CAP = 20
-_MEMORY_CAP = 20
 _RECURRING_CAP = 20
 _NEAR_LIMIT_PCT = 80.0
 _ACCOUNT_BALANCE_WARNING = "Accounts do not store true current balances; summaries use transactions only."
@@ -30,13 +29,6 @@ _ACCOUNT_BALANCE_WARNING = "Accounts do not store true current balances; summari
 class MissingDataMetadata(TypedDict):
     accounts_lack_current_balances: bool
     warnings: list[str]
-
-
-class MemoryItem(TypedDict):
-    key: str
-    value: str
-    source: str
-    updated_at: str
 
 
 class SpendingCategoryRow(TypedDict):
@@ -177,18 +169,11 @@ def _category_spending_rows(transactions: QuerySet[Transaction], limit: int) -> 
     ]
 
 
-def get_user_profile_memory(user: UserModel, *, limit: int = _MEMORY_CAP) -> dict[str, object]:
-    memories = AdvisorMemory.objects.filter(user=user).order_by("key")[:limit]
-    items: list[MemoryItem] = [
-        {
-            "key": memory.key,
-            "value": memory.value,
-            "source": memory.source,
-            "updated_at": memory.updated_at.isoformat(),
-        }
-        for memory in memories
-    ]
-    return {"items": items, "count": len(items), "capped": len(items) == limit}
+def get_user_profile_memory(user: UserModel) -> dict[str, object]:
+    memory = AdvisorMemory.objects.filter(user=user).first()
+    if memory is None:
+        return {"content": "", "updated_at": None}
+    return {"content": memory.content, "updated_at": memory.updated_at.isoformat()}
 
 
 def get_recent_spending_brief(

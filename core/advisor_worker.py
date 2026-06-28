@@ -5,7 +5,6 @@ import json
 from decimal import Decimal
 from typing import Literal, TypedDict, Union, cast
 
-from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
@@ -16,13 +15,13 @@ from .advisor_calculation_tools import (
     run_emergency_fund_calculation,
     run_large_event_plan,
 )
-from .advisor_memory_approval import maybe_create_memory_approval_answer
-from .advisor_memory_tools import create_memory_suggestion
+from .advisor_memory import get_advisor_memory, save_advisor_memory
 from .advisor_prompting import (
     ToolCall,
     ToolOutput,
     generate_advisor_answer,
     plan_advisor_tools,
+    rewrite_advisor_memory,
 )
 from .advisor_provider import OpenRouterClient
 from .advisor_tools import (
@@ -92,31 +91,30 @@ def process_advisor_run(*, run_id: int, client: OpenRouterClient | None = None) 
     if run.status != AdvisorRun.STATUS_RUNNING:
         raise ValueError("Advisor run must be running before processing.")
 
+    tool_outputs: list[ToolOutput] = []
     try:
         _save_partial(run, "Planning advisor answer...")
-        answer = maybe_create_memory_approval_answer(run)
-        if answer is None:
-            approved_memory = get_user_profile_memory(run.conversation.user)
-            planned_tool_calls = plan_advisor_tools(
-                client=effective_client,
-                user_message=run.user_message.content,
-                approved_memory=approved_memory,
-            )
-            tool_calls = _merge_tool_calls(
-                baseline_app_data_tool_calls(run.conversation.user, run.user_message.content),
-                planned_tool_calls,
-            )
-            _stop_if_canceled(run)
-            tool_outputs, tool_trace = _execute_tool_calls(run, tool_calls)
-            _save_trace(run, tool_trace)
-            _stop_if_canceled(run)
-            _save_partial(run, "Drafting advisor response...")
-            answer = generate_advisor_answer(
-                client=effective_client,
-                conversation=run.conversation,
-                current_user_message=run.user_message,
-                tool_outputs=tool_outputs,
-            )
+        memory_document = get_user_profile_memory(run.conversation.user)
+        planned_tool_calls = plan_advisor_tools(
+            client=effective_client,
+            user_message=run.user_message.content,
+            memory_document=memory_document,
+        )
+        tool_calls = _merge_tool_calls(
+            baseline_app_data_tool_calls(run.conversation.user, run.user_message.content),
+            planned_tool_calls,
+        )
+        _stop_if_canceled(run)
+        tool_outputs, tool_trace = _execute_tool_calls(run, tool_calls)
+        _save_trace(run, tool_trace)
+        _stop_if_canceled(run)
+        _save_partial(run, "Drafting advisor response...")
+        answer = generate_advisor_answer(
+            client=effective_client,
+            conversation=run.conversation,
+            current_user_message=run.user_message,
+            tool_outputs=tool_outputs,
+        )
         _stop_if_canceled(run)
     except Exception as exc:
         _mark_failed(run, str(exc))
@@ -138,6 +136,7 @@ def process_advisor_run(*, run_id: int, client: OpenRouterClient | None = None) 
         content=answer.content,
         linked_run=run,
     )
+    _silently_rewrite_memory(client=effective_client, run=run, tool_outputs=tool_outputs)
 
 
 def cancel_advisor_run(*, run_id: int) -> bool:
@@ -222,26 +221,7 @@ def _execute_tool_calls(run: AdvisorRun, tool_calls: list[ToolCall]) -> tuple[li
         name = tool_call["name"]
         arguments = tool_call["arguments"]
         try:
-            output = _execute_tool_call(name=name, arguments=arguments, user=user, run=run)
-        except ValidationError as exc:
-            if name != "create_memory_suggestion":
-                raise
-            output = {
-                "status": "rejected",
-                "active": False,
-                "error": _validation_error_message(exc),
-            }
-            outputs.append({"name": name, "output": cast(JsonValue, output)})
-            trace.append(
-                {
-                    "name": name,
-                    "status": "rejected",
-                    "argument_keys": sorted(arguments),
-                    "output_keys": sorted(output),
-                }
-            )
-            _stop_if_canceled(run)
-            continue
+            output = _execute_tool_call(name=name, arguments=arguments, user=user)
         except Exception as exc:
             trace.append(
                 {
@@ -265,35 +245,39 @@ def _execute_tool_calls(run: AdvisorRun, tool_calls: list[ToolCall]) -> tuple[li
     return outputs, trace
 
 
-def _validation_error_message(exc: ValidationError) -> str:
-    return " ".join(exc.messages)
-
-
 def _execute_tool_call(
     *,
     name: str,
     arguments: dict[str, JsonValue],
     user: UserModel,
-    run: AdvisorRun,
 ) -> dict[str, object]:
     if name in SUMMARY_TOOL_NAMES:
         return _execute_summary_tool(name=name, arguments=arguments, user=user)
     if name in CALCULATION_TOOL_NAMES:
         return _execute_calculation_tool(name=name, arguments=arguments)
-    if name == "create_memory_suggestion":
-        return create_memory_suggestion(
-            user,
-            conversation=run.conversation,
-            key=_string_arg(arguments, "key"),
-            suggested_value=_string_arg(arguments, "suggested_value"),
-            rationale=_string_arg(arguments, "rationale"),
-        )
     raise ValueError(f"Unsupported advisor tool: {name}")
+
+
+def _silently_rewrite_memory(*, client: OpenRouterClient, run: AdvisorRun, tool_outputs: list[ToolOutput]) -> None:
+    memory = get_advisor_memory(run.conversation.user)
+    try:
+        content = rewrite_advisor_memory(
+            client=client,
+            conversation=run.conversation,
+            current_user_message=run.user_message,
+            previous_memory=memory.content,
+            final_answer=run.final_response,
+            tool_outputs=tool_outputs,
+        )
+        if content != memory.content:
+            save_advisor_memory(run.conversation.user, content)
+    except Exception:
+        return
 
 
 def _execute_summary_tool(*, name: str, arguments: dict[str, JsonValue], user: UserModel) -> dict[str, object]:
     if name == "get_user_profile_memory":
-        return get_user_profile_memory(user, limit=_int_arg(arguments, "limit", 20))
+        return get_user_profile_memory(user)
     if name == "get_recent_spending_brief":
         preset = _preset_arg(arguments, "preset")
         start_date = _optional_date_arg(arguments, "start_date")

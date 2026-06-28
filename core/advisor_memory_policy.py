@@ -2,34 +2,21 @@ from __future__ import annotations
 
 import re
 
-FINANCIAL_RECORD_KEY_PREFIXES = (
-    "account",
-    "budget",
-    "category",
-    "expense_month",
-    "goal",
-    "goal_contribution",
-    "transaction",
-)
-
 POLICY_ERROR = "Advisor Memory must be stable personal context, not transaction-derived amounts or activity."
 
-_BLOCKED_KEY_PARTS = (
-    "salary",
-    "payroll",
-    "rent_amount",
-    "monthly_rent",
-    "category_spend",
-    "spending_total",
-    "spend_total",
-    "current_balance",
-    "account_balance",
-    "credit_card_balance",
-    "recent_purchase",
-    "recent_purchases",
-    "last_purchase",
-)
 _DERIVED_PHRASES = (
+    "account balance",
+    "budget snapshot",
+    "category spend",
+    "credit card balance",
+    "current available cash",
+    "current balance",
+    "current cash",
+    "recent spend",
+    "recent spending",
+    "spending total",
+    "transaction snapshot",
+    "transaction summary",
     "transaction-derived",
     "derived from transaction",
     "derived from transactions",
@@ -40,7 +27,6 @@ _DERIVED_PHRASES = (
     "based on transactions",
     "based on spending",
     "spending history",
-    "category spend",
     "recent purchase",
     "recent purchases",
     "last week's",
@@ -79,14 +65,8 @@ _SPEND_RE = re.compile(
 )
 
 
-def advisor_memory_policy_error(*, key: str, value: str, rationale: str = "") -> str:
-    normalized_key = _normalize_key(key)
-    if normalized_key.startswith(FINANCIAL_RECORD_KEY_PREFIXES) or any(
-        part in normalized_key for part in _BLOCKED_KEY_PARTS
-    ):
-        return POLICY_ERROR
-
-    text = _normalize_text(" ".join([key, value, rationale]))
+def advisor_memory_policy_error(*, content: str) -> str:
+    text = _normalize_text(content)
     blocked_text = (
         any(phrase in text for phrase in _PROTOCOL_PHRASES)
         or any(phrase in text for phrase in _DERIVED_PHRASES)
@@ -98,10 +78,6 @@ def advisor_memory_policy_error(*, key: str, value: str, rationale: str = "") ->
     if blocked_text:
         return POLICY_ERROR
     return ""
-
-
-def _normalize_key(value: str) -> str:
-    return value.lower().replace("-", "_").replace(" ", "_")
 
 
 def _normalize_text(value: str) -> str:

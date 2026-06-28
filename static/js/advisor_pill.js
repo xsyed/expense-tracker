@@ -17,7 +17,6 @@
   const tabButtons = Array.from(root.querySelectorAll("[data-advisor-tab]"));
   const chatPanel = document.getElementById("advisor-chat-panel");
   const memoryPanel = document.getElementById("advisor-memory-panel");
-  const memoryCountEl = document.getElementById("advisor-memory-count");
   const conversationSelect = document.getElementById("advisor-conversation-select");
   const errorEl = document.getElementById("advisor-error");
   const startersEl = document.getElementById("advisor-starters");
@@ -25,13 +24,12 @@
   const form = document.getElementById("advisor-form");
   const input = document.getElementById("advisor-input");
   const sendButton = document.getElementById("advisor-send");
+  const memoryEditButton = document.getElementById("advisor-memory-edit");
   const memoryForm = document.getElementById("advisor-memory-form");
-  const memoryKeyInput = document.getElementById("advisor-memory-key");
-  const memoryValueInput = document.getElementById("advisor-memory-value");
+  const memoryContentInput = document.getElementById("advisor-memory-content");
   const memorySaveButton = document.getElementById("advisor-memory-save");
   const memoryCancelButton = document.getElementById("advisor-memory-cancel");
-  const memoryListEl = document.getElementById("advisor-memory-list");
-  const memorySuggestionsEl = document.getElementById("advisor-memory-suggestions");
+  const memoryDocumentEl = document.getElementById("advisor-memory-document");
 
   const openStorageKey = "expenseAdvisorPanelOpen";
   const activeStatuses = new Set(["pending", "running"]);
@@ -45,13 +43,11 @@
     activeConversationId: null,
     conversations: [],
     messages: [],
-    memory: [],
-    memorySuggestions: [],
+    memory: { content: "", updated_at: null },
     runs: new Map(),
     pollTimers: new Map(),
     activeTab: "chat",
-    editingMemoryId: null,
-    editingSuggestionId: null,
+    isEditingMemory: false,
     isFullscreen: false,
     isOpen: readOpenState(),
     unread: false,
@@ -81,9 +77,8 @@
     event.preventDefault();
     saveMemoryFromForm();
   });
+  memoryEditButton.addEventListener("click", () => startMemoryEdit());
   memoryCancelButton.addEventListener("click", () => resetMemoryForm());
-  memoryListEl.addEventListener("click", (event) => handleMemoryListClick(event));
-  memorySuggestionsEl.addEventListener("click", (event) => handleSuggestionClick(event));
   startersEl.querySelectorAll("[data-advisor-starter]").forEach((button) => {
     button.addEventListener("click", () => sendContent(button.dataset.advisorStarter || ""));
   });
@@ -133,8 +128,7 @@
     try {
       const payload = await advisorFetch("/api/advisor/bootstrap/");
       state.conversations = payload.recent_conversations || [];
-      state.memory = payload.memory || [];
-      state.memorySuggestions = payload.pending_memory_suggestions || [];
+      state.memory = payload.memory || { content: "", updated_at: null };
       const pendingRuns = payload.pending_runs || [];
       pendingRuns.forEach((run) => {
         state.runs.set(run.id, run);
@@ -293,8 +287,7 @@
     }
     try {
       const payload = await advisorFetch("/api/advisor/memory/");
-      state.memory = payload.memory || [];
-      state.memorySuggestions = payload.pending_memory_suggestions || [];
+      state.memory = payload.memory || { content: "", updated_at: null };
       renderMemory();
       setError("");
     } catch (error) {
@@ -309,19 +302,14 @@
   }
 
   async function saveMemoryFromForm() {
-    const key = memoryKeyInput.value.trim();
-    const value = memoryValueInput.value.trim();
-    if (!key || !value) {
-      setError("Key and value are required.");
-      return;
-    }
-    setLoading(true, state.editingMemoryId ? "Updating context" : "Saving context");
+    const content = memoryContentInput.value.trim();
+    setLoading(true, "Saving context");
     try {
       const payload = await advisorFetch("/api/advisor/memory/", {
         method: "POST",
-        body: { key, value },
+        body: { content },
       });
-      state.memory = upsertMemory(state.memory, payload.memory);
+      state.memory = payload.memory || { content: "", updated_at: null };
       resetMemoryForm();
       renderMemory();
       setError("");
@@ -332,176 +320,21 @@
     }
   }
 
-  function handleMemoryListClick(event) {
-    const target = event.target instanceof Element ? event.target : null;
-    const button = target ? target.closest("[data-memory-action]") : null;
-    if (!button) {
-      return;
-    }
-    const memoryId = Number(button.dataset.memoryId || "0");
-    if (button.dataset.memoryAction === "edit") {
-      startMemoryEdit(memoryId);
-    } else if (button.dataset.memoryAction === "delete") {
-      deleteMemory(memoryId);
-    }
-  }
-
-  function startMemoryEdit(memoryId) {
-    const memory = state.memory.find((item) => item.id === memoryId);
-    if (!memory) {
-      return;
-    }
-    state.editingMemoryId = memoryId;
-    memoryKeyInput.value = memory.key || "";
-    memoryValueInput.value = memory.value || "";
-    memoryKeyInput.readOnly = true;
+  function startMemoryEdit() {
+    state.isEditingMemory = true;
+    memoryContentInput.value = state.memory.content || "";
     memoryCancelButton.classList.remove("d-none");
-    setButtonContent(memorySaveButton, "bi bi-save", "Update");
-    memoryValueInput.focus();
+    setButtonContent(memorySaveButton, "bi bi-save", "Save");
+    renderMemory();
+    memoryContentInput.focus();
   }
 
   function resetMemoryForm() {
-    state.editingMemoryId = null;
+    state.isEditingMemory = false;
     memoryForm.reset();
-    memoryKeyInput.readOnly = false;
     memoryCancelButton.classList.add("d-none");
     setButtonContent(memorySaveButton, "bi bi-save", "Save");
-  }
-
-  async function deleteMemory(memoryId) {
-    if (!memoryId || !window.confirm("Delete this context item?")) {
-      return;
-    }
-    setLoading(true, "Deleting context");
-    try {
-      await advisorFetch(`/api/advisor/memory/${memoryId}/delete/`, {
-        method: "POST",
-        body: {},
-      });
-      state.memory = state.memory.filter((item) => item.id !== memoryId);
-      if (state.editingMemoryId === memoryId) {
-        resetMemoryForm();
-      }
-      renderMemory();
-      setError("");
-    } catch (error) {
-      setError(error.message || "Context could not be deleted.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSuggestionClick(event) {
-    const target = event.target instanceof Element ? event.target : null;
-    const button = target ? target.closest("[data-suggestion-action]") : null;
-    if (!button) {
-      return;
-    }
-    const suggestionId = Number(button.dataset.suggestionId || "0");
-    const action = button.dataset.suggestionAction;
-    if (action === "edit") {
-      state.editingSuggestionId = suggestionId;
-      renderMemory();
-    } else if (action === "cancel-edit") {
-      state.editingSuggestionId = null;
-      renderMemory();
-    } else if (action === "save-edit") {
-      await saveSuggestionEdit(suggestionId);
-    } else if (action === "accept-edited") {
-      const payload = suggestionEditPayload(suggestionId);
-      if (payload) {
-        await acceptSuggestion(suggestionId, payload);
-      }
-    } else if (action === "accept") {
-      await acceptSuggestion(suggestionId, null);
-    } else if (action === "reject") {
-      await rejectSuggestion(suggestionId);
-    }
-  }
-
-  async function saveSuggestionEdit(suggestionId) {
-    const payload = suggestionEditPayload(suggestionId);
-    if (!payload) {
-      return;
-    }
-    setLoading(true, "Saving suggestion");
-    try {
-      const response = await advisorFetch(`/api/advisor/memory-suggestions/${suggestionId}/edit/`, {
-        method: "POST",
-        body: payload,
-      });
-      state.memorySuggestions = upsertSuggestion(state.memorySuggestions, response.suggestion);
-      state.editingSuggestionId = null;
-      renderMemory();
-      setError("");
-    } catch (error) {
-      setError(error.message || "Suggestion could not be saved.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function acceptSuggestion(suggestionId, editPayload) {
-    if (editPayload === undefined) {
-      return;
-    }
-    setLoading(true, "Accepting suggestion");
-    try {
-      const body = editPayload ? { key: editPayload.key, value: editPayload.suggested_value } : {};
-      const response = await advisorFetch(`/api/advisor/memory-suggestions/${suggestionId}/accept/`, {
-        method: "POST",
-        body,
-      });
-      state.memory = upsertMemory(state.memory, response.memory);
-      state.memorySuggestions = state.memorySuggestions.filter((item) => item.id !== suggestionId);
-      state.editingSuggestionId = null;
-      renderMemory();
-      setError("");
-    } catch (error) {
-      setError(error.message || "Suggestion could not be accepted.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function rejectSuggestion(suggestionId) {
-    setLoading(true, "Rejecting suggestion");
-    try {
-      await advisorFetch(`/api/advisor/memory-suggestions/${suggestionId}/reject/`, {
-        method: "POST",
-        body: {},
-      });
-      state.memorySuggestions = state.memorySuggestions.filter((item) => item.id !== suggestionId);
-      if (state.editingSuggestionId === suggestionId) {
-        state.editingSuggestionId = null;
-      }
-      renderMemory();
-      setError("");
-    } catch (error) {
-      setError(error.message || "Suggestion could not be rejected.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function suggestionEditPayload(suggestionId) {
-    const item = memorySuggestionsEl.querySelector(`[data-suggestion-id="${suggestionId}"]`);
-    if (!item) {
-      return null;
-    }
-    const key = fieldValue(item, "key");
-    const suggestedValue = fieldValue(item, "suggested_value");
-    const rationale = fieldValue(item, "rationale");
-    if (!key || !suggestedValue) {
-      setError("Key and suggested value are required.");
-      return null;
-    }
-    return { key, suggested_value: suggestedValue, rationale };
-  }
-
-  function fieldValue(container, fieldName) {
-    const field = container.querySelector(`[data-suggestion-field="${fieldName}"]`);
-    return field && typeof field.value === "string" ? field.value.trim() : "";
+    renderMemory();
   }
 
   function startPolling(run) {
@@ -596,151 +429,16 @@
   }
 
   function renderMemory() {
-    memoryListEl.textContent = "";
-    const memoryItems = sortedMemory();
-    if (memoryItems.length === 0) {
-      appendEmptyState(memoryListEl, "No approved context yet.");
+    memoryDocumentEl.textContent = "";
+    const content = state.memory.content || "";
+    if (content) {
+      memoryDocumentEl.textContent = content;
     } else {
-      memoryItems.forEach((memory) => renderMemoryItem(memory));
+      appendEmptyState(memoryDocumentEl, "No saved memory yet.");
     }
-
-    memorySuggestionsEl.textContent = "";
-    const suggestions = sortedSuggestions();
-    if (suggestions.length === 0) {
-      appendEmptyState(memorySuggestionsEl, "No pending suggestions.");
-    } else {
-      suggestions.forEach((suggestion) => renderSuggestion(suggestion));
-    }
-    updateMemoryBadge();
-  }
-
-  function renderMemoryItem(memory) {
-    const item = document.createElement("div");
-    item.className = "advisor-memory-item";
-
-    const header = document.createElement("div");
-    header.className = "advisor-memory-item-header";
-    const key = document.createElement("div");
-    key.className = "advisor-memory-key";
-    key.textContent = memory.key || "context";
-    header.appendChild(key);
-
-    const actions = document.createElement("div");
-    actions.className = "advisor-memory-item-actions";
-    const editButton = actionButton("Edit", "bi bi-pencil", "btn-outline-secondary");
-    editButton.dataset.memoryAction = "edit";
-    editButton.dataset.memoryId = String(memory.id);
-    actions.appendChild(editButton);
-    const deleteButton = actionButton("Delete", "bi bi-trash", "btn-outline-danger");
-    deleteButton.dataset.memoryAction = "delete";
-    deleteButton.dataset.memoryId = String(memory.id);
-    actions.appendChild(deleteButton);
-    header.appendChild(actions);
-
-    const value = document.createElement("div");
-    value.className = "advisor-memory-value";
-    value.textContent = memory.value || "";
-    item.appendChild(header);
-    item.appendChild(value);
-    memoryListEl.appendChild(item);
-  }
-
-  function renderSuggestion(suggestion) {
-    const item = document.createElement("div");
-    item.className = "advisor-suggestion-item";
-    item.dataset.suggestionId = String(suggestion.id);
-    if (state.editingSuggestionId === suggestion.id) {
-      renderSuggestionEdit(item, suggestion);
-    } else {
-      renderSuggestionDisplay(item, suggestion);
-    }
-    memorySuggestionsEl.appendChild(item);
-  }
-
-  function renderSuggestionDisplay(item, suggestion) {
-    const header = document.createElement("div");
-    header.className = "advisor-suggestion-header";
-    const key = document.createElement("div");
-    key.className = "advisor-suggestion-key";
-    key.textContent = suggestion.key || "suggestion";
-    header.appendChild(key);
-    const status = document.createElement("span");
-    status.className = "advisor-suggestion-status";
-    status.textContent = suggestionStatusLabel(suggestion.status);
-    header.appendChild(status);
-
-    const value = document.createElement("div");
-    value.className = "advisor-suggestion-value";
-    value.textContent = suggestion.suggested_value || "";
-    const rationale = document.createElement("div");
-    rationale.className = "advisor-suggestion-rationale";
-    rationale.textContent = suggestion.rationale ? `Rationale: ${suggestion.rationale}` : "Rationale: Not provided.";
-
-    const actions = document.createElement("div");
-    actions.className = "advisor-suggestion-actions mt-2";
-    const acceptButton = actionButton("Accept", "bi bi-check-lg", "btn-success");
-    acceptButton.dataset.suggestionAction = "accept";
-    acceptButton.dataset.suggestionId = String(suggestion.id);
-    actions.appendChild(acceptButton);
-    const editButton = actionButton("Edit", "bi bi-pencil", "btn-outline-secondary");
-    editButton.dataset.suggestionAction = "edit";
-    editButton.dataset.suggestionId = String(suggestion.id);
-    actions.appendChild(editButton);
-    const rejectButton = actionButton("Reject", "bi bi-x-lg", "btn-outline-danger");
-    rejectButton.dataset.suggestionAction = "reject";
-    rejectButton.dataset.suggestionId = String(suggestion.id);
-    actions.appendChild(rejectButton);
-
-    item.appendChild(header);
-    item.appendChild(value);
-    item.appendChild(rationale);
-    item.appendChild(actions);
-  }
-
-  function renderSuggestionEdit(item, suggestion) {
-    const editor = document.createElement("div");
-    editor.className = "advisor-suggestion-edit";
-    editor.appendChild(suggestionField("Key", "key", suggestion.key || "", false));
-    editor.appendChild(suggestionField("Suggested value", "suggested_value", suggestion.suggested_value || "", true));
-    editor.appendChild(suggestionField("Rationale", "rationale", suggestion.rationale || "", true));
-
-    const actions = document.createElement("div");
-    actions.className = "advisor-suggestion-actions";
-    const saveButton = actionButton("Save", "bi bi-save", "btn-outline-primary");
-    saveButton.dataset.suggestionAction = "save-edit";
-    saveButton.dataset.suggestionId = String(suggestion.id);
-    actions.appendChild(saveButton);
-    const acceptButton = actionButton("Accept edited", "bi bi-check-lg", "btn-success");
-    acceptButton.dataset.suggestionAction = "accept-edited";
-    acceptButton.dataset.suggestionId = String(suggestion.id);
-    actions.appendChild(acceptButton);
-    const cancelButton = actionButton("Cancel", "bi bi-x-lg", "btn-outline-secondary");
-    cancelButton.dataset.suggestionAction = "cancel-edit";
-    cancelButton.dataset.suggestionId = String(suggestion.id);
-    actions.appendChild(cancelButton);
-    editor.appendChild(actions);
-    item.appendChild(editor);
-  }
-
-  function suggestionField(labelText, fieldName, value, multiline) {
-    const wrapper = document.createElement("div");
-    const label = document.createElement("label");
-    label.className = "form-label small fw-bold mb-1";
-    label.textContent = labelText;
-    const field = document.createElement(multiline ? "textarea" : "input");
-    field.className = "form-control form-control-sm";
-    field.dataset.suggestionField = fieldName;
-    field.setAttribute("aria-label", labelText);
-    field.maxLength = fieldName === "key" ? 100 : 10000;
-    if (multiline) {
-      field.rows = fieldName === "rationale" ? 2 : 3;
-    } else {
-      field.type = "text";
-    }
-    field.value = value;
-    wrapper.appendChild(label);
-    wrapper.appendChild(field);
-    return wrapper;
+    memoryDocumentEl.classList.toggle("d-none", state.isEditingMemory);
+    memoryForm.classList.toggle("d-none", !state.isEditingMemory);
+    memoryEditButton.classList.toggle("d-none", state.isEditingMemory);
   }
 
   function appendEmptyState(container, text) {
@@ -748,12 +446,6 @@
     empty.className = "advisor-empty";
     empty.textContent = text;
     container.appendChild(empty);
-  }
-
-  function updateMemoryBadge() {
-    const count = state.memorySuggestions.length;
-    memoryCountEl.textContent = String(count);
-    memoryCountEl.classList.toggle("d-none", count === 0);
   }
 
   function actionButton(label, iconClass, buttonClass) {
@@ -1203,28 +895,8 @@
     return [...state.messages].sort((first, second) => new Date(first.created_at) - new Date(second.created_at));
   }
 
-  function sortedMemory() {
-    return [...state.memory].sort((first, second) => String(first.key || "").localeCompare(String(second.key || "")));
-  }
-
-  function sortedSuggestions() {
-    return [...state.memorySuggestions].sort((first, second) => new Date(second.created_at) - new Date(first.created_at));
-  }
-
   function sortedConversations() {
     return [...state.conversations].sort((first, second) => new Date(second.updated_at) - new Date(first.updated_at));
-  }
-
-  function upsertMemory(memoryItems, memory) {
-    const filtered = memoryItems.filter((item) => item.id !== memory.id && item.key !== memory.key);
-    filtered.push(memory);
-    return filtered;
-  }
-
-  function upsertSuggestion(suggestions, suggestion) {
-    const filtered = suggestions.filter((item) => item.id !== suggestion.id);
-    filtered.push(suggestion);
-    return filtered;
   }
 
   function upsertConversation(conversations, conversation) {
@@ -1249,20 +921,11 @@
     return labels[status] || "Advisor";
   }
 
-  function suggestionStatusLabel(status) {
-    const labels = {
-      pending: "Pending",
-      accepted: "Accepted",
-      rejected: "Rejected",
-      dismissed: "Dismissed",
-    };
-    return labels[status] || "Pending";
-  }
-
   function setLoading(isLoading, status) {
     state.loading = isLoading;
     input.disabled = isLoading;
     sendButton.disabled = isLoading;
+    memoryEditButton.disabled = isLoading;
     memorySaveButton.disabled = isLoading;
     memoryCancelButton.disabled = isLoading;
     if (status) {
