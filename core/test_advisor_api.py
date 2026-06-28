@@ -126,6 +126,34 @@ class AdvisorApiTests(TestCase):
         self.assertEqual(run.status, AdvisorRun.STATUS_PENDING)
         self.assertEqual(run.user_message, message)
 
+    def test_message_create_titles_empty_placeholder_conversation(self) -> None:
+        conversation = AdvisorConversation.objects.create(user=self.user, title="New conversation")
+
+        response = self._post_json(
+            "advisor_message_create",
+            {"content": "critical actions before next paycheck"},
+            pk=conversation.id,
+        )
+
+        self.assertEqual(response.status_code, 201)
+        conversation.refresh_from_db()
+        conversation_payload = cast(dict[str, object], response.json()["conversation"])
+        self.assertEqual(conversation.title, "critical actions before next paycheck")
+        self.assertEqual(conversation_payload["title"], "critical actions before next paycheck")
+
+    def test_message_create_keeps_existing_conversation_title(self) -> None:
+        response = self._post_json(
+            "advisor_message_create",
+            {"content": "weekly focus"},
+            pk=self.conversation.id,
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.conversation.refresh_from_db()
+        conversation_payload = cast(dict[str, object], response.json()["conversation"])
+        self.assertEqual(self.conversation.title, "Main chat")
+        self.assertEqual(conversation_payload["title"], "Main chat")
+
     def test_run_poll_and_cancel_are_user_scoped(self) -> None:
         poll_response = self.client.get(reverse("advisor_run_detail", kwargs={"pk": self.advisor_run.id}))
         cancel_response = self.client.post(reverse("advisor_run_cancel", kwargs={"pk": self.advisor_run.id}))

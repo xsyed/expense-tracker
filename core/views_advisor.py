@@ -19,6 +19,9 @@ JsonValue = Union[None, bool, int, float, str, list["JsonValue"], dict[str, "Jso
 JsonObject = dict[str, JsonValue]
 
 RECENT_CONVERSATION_LIMIT = 10
+NEW_CONVERSATION_TITLE = "New conversation"
+CONVERSATION_TITLE_MAX_LENGTH = 80
+CONVERSATION_TITLE_PREFIX_LENGTH = 77
 
 
 @login_required
@@ -49,7 +52,7 @@ def advisor_conversations_view(request: HttpRequest) -> JsonResponse:
         payload = _json_body(request)
         if payload is None:
             return _error_response("Invalid request body.")
-        title = _clean_string(payload.get("title"), "New conversation", max_length=200)
+        title = _clean_string(payload.get("title"), NEW_CONVERSATION_TITLE, max_length=200)
         conversation = AdvisorConversation.objects.create(user=_request_user(request), title=title)
         return JsonResponse({"conversation": _serialize_conversation(conversation)}, status=201)
     return _method_not_allowed(["GET", "POST"])
@@ -84,13 +87,27 @@ def advisor_message_create_view(request: HttpRequest, pk: int) -> JsonResponse:
         return _error_response("Message content is required.")
 
     with transaction.atomic():
+        should_title_from_message = (
+            conversation.title == NEW_CONVERSATION_TITLE
+            and not AdvisorMessage.objects.filter(conversation=conversation).exists()
+        )
         message = AdvisorMessage.objects.create(
             conversation=conversation,
             role=AdvisorMessage.ROLE_USER,
             content=content,
         )
         run = AdvisorRun.objects.create(conversation=conversation, user_message=message)
-    return JsonResponse({"message": _serialize_message(message), "run": _serialize_run(run)}, status=201)
+        if should_title_from_message:
+            conversation.title = _title_from_message(content)
+            conversation.save(update_fields=["title", "updated_at"])
+    return JsonResponse(
+        {
+            "conversation": _serialize_conversation(conversation),
+            "message": _serialize_message(message),
+            "run": _serialize_run(run),
+        },
+        status=201,
+    )
 
 
 @login_required
@@ -144,6 +161,12 @@ def _json_body(request: HttpRequest) -> JsonObject | None:
 def _clean_string(value: JsonValue, default: str, *, max_length: int) -> str:
     cleaned = value.strip() if isinstance(value, str) else default
     return cleaned[:max_length]
+
+
+def _title_from_message(content: str) -> str:
+    return (
+        f"{content[:CONVERSATION_TITLE_PREFIX_LENGTH]}..." if len(content) > CONVERSATION_TITLE_MAX_LENGTH else content
+    )
 
 
 def _pending_runs(user: UserModel) -> list[AdvisorRun]:

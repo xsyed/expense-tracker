@@ -225,6 +225,7 @@
         method: "POST",
         body: { content },
       });
+      state.conversations = upsertConversation(state.conversations, payload.conversation);
       state.messages.push(payload.message);
       state.runs.set(payload.run.id, payload.run);
       startPolling(payload.run);
