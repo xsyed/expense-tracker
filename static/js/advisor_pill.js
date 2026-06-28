@@ -522,7 +522,11 @@
     }
     const bubble = document.createElement("div");
     bubble.className = "advisor-message advisor-message-user";
-    bubble.textContent = message.content;
+    const content = document.createElement("div");
+    content.className = "advisor-message-content";
+    content.textContent = message.content;
+    bubble.appendChild(content);
+    bubble.appendChild(userMessageActions(message.content));
     messagesEl.appendChild(bubble);
   }
 
@@ -541,18 +545,35 @@
     labelEl.textContent = label;
     meta.appendChild(labelEl);
 
-    if (markdown) {
-      const copyButton = copyButtonFor("Copy full answer", "Copy");
-      copyButton.addEventListener("click", () => copyToClipboard(markdown, copyButton, "Copied"));
-      meta.appendChild(copyButton);
-    }
-
     const content = document.createElement("div");
     content.className = "advisor-message-content";
     renderSafeMarkdown(content, markdown);
     bubble.appendChild(meta);
     bubble.appendChild(content);
+    if (markdown) {
+      bubble.appendChild(assistantMessageActions(markdown));
+    }
     messagesEl.appendChild(bubble);
+  }
+
+  function userMessageActions(messageContent) {
+    const actions = document.createElement("div");
+    actions.className = "advisor-message-actions";
+    const copyButton = messageActionButton("Copy your message", "bi bi-copy", "");
+    copyButton.addEventListener("click", () => copyToClipboard(messageContent, copyButton, "Copied"));
+    const editButton = messageActionButton("Edit and resend", "bi bi-pencil-square", "Edit");
+    editButton.addEventListener("click", () => startMessageEdit(messageContent));
+    actions.append(copyButton, editButton);
+    return actions;
+  }
+
+  function assistantMessageActions(markdown) {
+    const actions = document.createElement("div");
+    actions.className = "advisor-message-actions";
+    const copyButton = messageActionButton("Copy full answer", "bi bi-copy", "");
+    copyButton.addEventListener("click", () => copyToClipboard(markdown, copyButton, "Copied"));
+    actions.appendChild(copyButton);
+    return actions;
   }
 
   function renderSafeMarkdown(container, markdown) {
@@ -836,18 +857,29 @@
     return "";
   }
 
-  function copyButtonFor(title, text) {
+  function messageActionButton(title, iconClass, text) {
     const button = document.createElement("button");
-    button.className = "advisor-copy-btn";
+    button.className = "advisor-message-action-btn";
     button.type = "button";
     button.title = title;
     button.setAttribute("aria-label", title);
     const icon = document.createElement("i");
-    icon.className = "bi bi-copy";
+    icon.className = iconClass;
     icon.setAttribute("aria-hidden", "true");
     button.appendChild(icon);
     button.appendChild(document.createTextNode(` ${text}`));
     return button;
+  }
+
+  function startMessageEdit(messageContent) {
+    setActiveTab("chat");
+    setOpen(true);
+    input.value = messageContent;
+    resizeChatInput();
+    window.setTimeout(() => {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }, 0);
   }
 
   async function copyToClipboard(text, button, successText) {

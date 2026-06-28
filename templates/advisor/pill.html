@@ -265,7 +265,7 @@
 
   .advisor-empty {
     color: #64748b;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     padding: 1.75rem 0.5rem;
     text-align: center;
   }
@@ -340,6 +340,7 @@
     max-width: 92%;
     border-radius: 0.5rem;
     padding: 0.7rem 0.8rem;
+    font-size: 0.9rem;
     line-height: 1.45;
     overflow-wrap: anywhere;
   }
@@ -368,8 +369,6 @@
   .advisor-message-meta {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
     margin-bottom: 0.4rem;
     color: #64748b;
     font-size: 0.72rem;
@@ -452,7 +451,14 @@
     background: #fff;
   }
 
-  .advisor-copy-btn {
+  .advisor-message-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    margin-top: 0.55rem;
+  }
+
+  .advisor-message-action-btn {
     border: 1px solid #cbd5e1;
     border-radius: 0.375rem;
     background: #fff;
@@ -460,6 +466,12 @@
     font-size: 0.72rem;
     font-weight: 700;
     padding: 0.2rem 0.45rem;
+  }
+
+  .advisor-message-user .advisor-message-action-btn {
+    border-color: rgba(255, 255, 255, 0.42);
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
   }
 
   .advisor-form {
