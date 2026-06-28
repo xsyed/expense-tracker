@@ -51,6 +51,7 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d
             sleep 15
             curl -sf http://localhost:8000/health/ || (echo "Health check failed!" && exit 1)
+            docker inspect --format='{{.State.Running}}' expense-tracker-advisor-worker | grep -q true || (echo "Advisor worker is not running!" && exit 1)
             rm -rf ./deploy
             docker cp expense-tracker-web:/app/deploy ./deploy
             chmod +x ./deploy/*.sh

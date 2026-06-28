@@ -209,3 +209,7 @@ docker-compose.override.yml
 *.tfstate.backup
 .serverless/
 .netlify/
+
+docs/*
+tasks/*
+CONTEXT.md

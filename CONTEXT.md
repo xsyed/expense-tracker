@@ -24,9 +24,9 @@ _Avoid_: Memory, profile
 Stable personal context that helps interpret financial questions but is not itself a financial record.
 _Avoid_: Financial data, transaction memory
 
-**Memory Suggestion**:
-A proposed change to advisor memory that is inactive until the user accepts or edits it.
-_Avoid_: Automatic memory update
+**Memory Document**:
+One compact prose row per user containing stable advisor memory.
+_Avoid_: Key/value memory, pending suggestion
 
 **Current Available Cash**:
 A point-in-time amount the user provides when stored records are insufficient to answer an affordability question.
@@ -61,7 +61,7 @@ A compact representation of prior advisor conversation used for model context.
 _Avoid_: Full history prompt
 
 **Provider Context**:
-The approved memory, conversation text, and financial summaries sent to an external model provider.
+The advisor memory document, conversation text, and financial summaries sent to an external model provider.
 _Avoid_: Full financial record export
 
 **Advisor Run**:
@@ -74,7 +74,7 @@ _Avoid_: Page request, browser stream
 - A **High-Impact Finance Question** requires a **Follow-Up Gate** when missing facts could change the recommendation
 - A **Cash-Flow Recommendation** must disclose when **Current Available Cash** is required but unknown
 - **Advisor Memory** may inform a recommendation, but must not duplicate **Financial Records**
-- A **Memory Suggestion** may become **Advisor Memory** only after user confirmation
+- **Advisor Memory** is silently rewritten after successful completed answers
 - **Current Available Cash** may be requested from the user because accounts do not currently store true balances
 - A **Personal Finance Copilot** should prefer **Financial Summary** data over broad raw **Financial Records**
 - A **Personal Finance Copilot** may use **Advisor Calculation** tools but must not execute model-written code in phase 1
@@ -82,7 +82,7 @@ _Avoid_: Page request, browser stream
 - An **Advisor Pill** is the primary phase-1 interface for **Advisor Conversations**
 - An **Advisor Conversation** contains one or more **Advisor Runs**
 - An **Advisor Conversation** stores full user-visible history, while **Conversation Summary** limits what is sent to the model
-- **Provider Context** must be minimized to the current question, approved memory, compact conversation context, and needed financial summaries
+- **Provider Context** must be minimized to the current question, advisor memory, compact conversation context, and needed financial summaries
 - An **Advisor Run** continues independently of the browser page that created it
 
 ## Example Dialogue
@@ -96,7 +96,7 @@ _Avoid_: Page request, browser stream
 
 - "Financial Advisor" sounds regulated and overly broad. Resolved: use **Personal Finance Copilot** for this feature.
 - "Memory" could mean stored financial facts or personal preferences. Resolved: **Advisor Memory** stores stable personal context, not **Financial Records**.
-- "Update memory" could mean silent AI writes. Resolved: the copilot creates **Memory Suggestions**; the user confirms, edits, or rejects them.
+- "Update memory" could mean storing volatile app facts. Resolved: successful advisor answers trigger a silent rewrite of one stable-profile-only memory document; volatile financial facts remain tool outputs.
 - "API/MCP tools" could mean exposing every financial query as an external interface. Resolved: start with compact **Financial Summary** tools inside the app; add external MCP only if another client needs it.
 - "Write its own code" is too broad for a critical finance feature. Resolved: phase 1 uses tested **Advisor Calculation** tools only.
 - "Streaming response" could mean the page owns the model request. Resolved: an **Advisor Run** owns answer generation; pages display saved run state.

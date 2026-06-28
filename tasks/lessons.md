@@ -7,6 +7,24 @@ Format: **What went wrong → Root cause → Rule to enforce**
 
 <!-- Add new lessons below this line. Most recent first. -->
 
+## Chat composer button height must follow measured textarea height
+
+**What went wrong**: Send button still looked misaligned after matching the nominal default height.
+**Root cause**: Bootstrap textarea padding and auto-resize scroll height determine the real rendered height, so fixed CSS height was only an approximation.
+**Rule**: For auto-resizing chat composers, sync adjacent button height from the measured textarea height inside the resize function; keep CSS height only as fallback.
+
+## Advisor header must stay compact after removing status text
+
+**What went wrong**: Removed visible Ready status but kept header padding/button sizing from the old two-line header, so opened chat UI felt too tall.
+**Root cause**: Treated label/status removal as content-only instead of rebalancing the surrounding chrome.
+**Rule**: When removing header/status content from compact overlays, also review header padding, title line-height, and icon button dimensions in the same pass.
+
+## Memory approval phrases must not fall through to the planner
+
+**What went wrong**: "save your recommended memory preference from previous message" bypassed the deterministic approval handler, so the model created `assistant_recommended_memory_preference` from planner/system instructions.
+**Root cause**: The approval matcher only recognized short phrases like "save these", and the memory policy did not reject protocol/tool-call artifacts.
+**Rule**: Route any save/remember request that references previous/recommended memory through deterministic extraction. Reject durable memory about JSON, tool-call, approved-tool, or response-protocol constraints.
+
 ## Budget panel should show active spend, not configured-but-unused categories
 
 **What went wrong**: I treated "zero-spend categories still appear" as final even after the panel became too noisy for the month detail sidebar.

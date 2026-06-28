@@ -24,3 +24,30 @@ services:
       resources:
         limits:
           memory: 300M
+
+  advisor-worker:
+    image: ghcr.io/xsyed/expense-tracker:latest
+    container_name: expense-tracker-advisor-worker
+    env_file: .env
+    command: ["python", "manage.py", "process_advisor_runs", "--poll-interval", "2"]
+    depends_on:
+      web:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "manage.py", "check", "--fail-level", "ERROR"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 300M
