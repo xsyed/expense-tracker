@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from typing import Protocol, cast
 
 from django.contrib.auth import get_user_model
@@ -17,6 +18,15 @@ class JsonTestResponse(Protocol):
     status_code: int
 
     def json(self) -> dict[str, object]: ...
+
+
+class StreamingTestResponse(Protocol):
+    status_code: int
+    streaming_content: Iterable[bytes]
+
+    def __getitem__(self, key: str) -> str: ...
+
+    def close(self) -> None: ...
 
 
 class AdvisorApiTests(TestCase):
@@ -166,6 +176,47 @@ class AdvisorApiTests(TestCase):
         self.assertEqual(self.advisor_run.status, AdvisorRun.STATUS_CANCELED)
         self.assertTrue(cancel_response.json()["canceled"])
 
+    def test_run_events_requires_authentication(self) -> None:
+        self.client.logout()
+
+        response = self.client.get(reverse("advisor_run_events", kwargs={"pk": self.advisor_run.id}))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("two_factor:login"), response["Location"])
+
+    def test_run_events_streams_initial_run_state(self) -> None:
+        response = cast(
+            StreamingTestResponse,
+            self.client.get(reverse("advisor_run_events", kwargs={"pk": self.advisor_run.id})),
+        )
+
+        first_chunk = next(iter(response.streaming_content)).decode("utf-8")
+        response.close()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/event-stream")
+        self.assertEqual(response["Cache-Control"], "no-cache")
+        self.assertEqual(response["X-Accel-Buffering"], "no")
+        self.assertIn("event: run", first_chunk)
+        self.assertIn('"partial_markdown": "Drafting..."', first_chunk)
+
+    def test_run_events_streams_done_for_terminal_run(self) -> None:
+        AdvisorRun.objects.filter(pk=self.advisor_run.pk).update(
+            status=AdvisorRun.STATUS_COMPLETED,
+            partial_response="Direct answer.",
+            final_response="Direct answer.",
+        )
+        response = cast(
+            StreamingTestResponse,
+            self.client.get(reverse("advisor_run_events", kwargs={"pk": self.advisor_run.id})),
+        )
+
+        body = b"".join(response.streaming_content).decode("utf-8")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("event: done", body)
+        self.assertIn('"status": "completed"', body)
+        self.assertIn('"final_markdown": "Direct answer."', body)
+
     def test_waiting_run_poll_sets_follow_up_required(self) -> None:
         AdvisorRun.objects.filter(pk=self.advisor_run.pk).update(
             status=AdvisorRun.STATUS_WAITING_FOR_USER,
@@ -230,10 +281,11 @@ class AdvisorApiTests(TestCase):
             self.client.get(reverse("advisor_conversation_detail", kwargs={"pk": other_conversation.id})),
             self._post_json("advisor_message_create", {"content": "Cross-user"}, pk=other_conversation.id),
             self.client.get(reverse("advisor_run_detail", kwargs={"pk": other_run.id})),
+            self.client.get(reverse("advisor_run_events", kwargs={"pk": other_run.id})),
             self.client.post(reverse("advisor_run_cancel", kwargs={"pk": other_run.id})),
         ]
 
-        self.assertEqual([response.status_code for response in responses], [404, 404, 404, 404])
+        self.assertEqual([response.status_code for response in responses], [404, 404, 404, 404, 404])
         self.assertTrue(AdvisorRun.objects.filter(pk=other_run.id, status=AdvisorRun.STATUS_PENDING).exists())
         self.assertEqual(self.client.get(reverse("advisor_memory")).json()["memory"]["content"], "")
         self.assertTrue(AdvisorMemory.objects.filter(pk=other_memory.id, content="Private").exists())

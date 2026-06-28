@@ -369,6 +369,11 @@
     border: 1px solid #e2e8f0;
   }
 
+  .advisor-message-streaming {
+    border-color: #bfdbfe;
+    box-shadow: inset 3px 0 0 #2563eb;
+  }
+
   .advisor-message-meta {
     display: flex;
     align-items: center;
@@ -453,12 +458,14 @@
   .advisor-table-wrap {
     max-width: 100%;
     overflow-x: auto;
+    overscroll-behavior-inline: contain;
   }
 
   .advisor-markdown-table {
     min-width: 100%;
     border-collapse: collapse;
     font-size: 0.82rem;
+    table-layout: auto;
   }
 
   .advisor-markdown-table th,
@@ -476,6 +483,17 @@
 
   .advisor-markdown-table td {
     background: #fff;
+  }
+
+  .advisor-stream-cursor {
+    display: inline-block;
+    width: 0.45rem;
+    height: 1rem;
+    margin-left: 0.12rem;
+    vertical-align: -0.12rem;
+    background: #2563eb;
+    border-radius: 999px;
+    animation: advisorCursorBlink 1s steps(2, start) infinite;
   }
 
   .advisor-message-actions {
@@ -581,6 +599,12 @@
   @keyframes advisorSpin {
     to {
       transform: rotate(360deg);
+    }
+  }
+
+  @keyframes advisorCursorBlink {
+    50% {
+      opacity: 0;
     }
   }
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TypedDict, Union, cast
 
@@ -211,6 +212,26 @@ def generate_advisor_answer(
             current_user_message=current_user_message,
             tool_outputs=tool_outputs,
         ),
+    )
+    return AdvisorAnswer(content=response.content, model=response.model)
+
+
+def stream_advisor_answer(
+    *,
+    client: OpenRouterClient,
+    conversation: AdvisorConversation,
+    current_user_message: AdvisorMessage,
+    tool_outputs: list[ToolOutput],
+    on_delta: Callable[[str], None],
+) -> AdvisorAnswer:
+    response = client.stream_chat_completion(
+        model=str(settings.ADVISOR_MODEL),
+        messages=build_advisor_messages(
+            conversation=conversation,
+            current_user_message=current_user_message,
+            tool_outputs=tool_outputs,
+        ),
+        on_delta=on_delta,
     )
     return AdvisorAnswer(content=response.content, model=response.model)
 

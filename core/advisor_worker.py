@@ -17,11 +17,12 @@ from .advisor_calculation_tools import (
 )
 from .advisor_memory import get_advisor_memory, save_advisor_memory
 from .advisor_prompting import (
+    AdvisorAnswer,
     ToolCall,
     ToolOutput,
-    generate_advisor_answer,
     plan_advisor_tools,
     rewrite_advisor_memory,
+    stream_advisor_answer,
 )
 from .advisor_provider import OpenRouterClient
 from .advisor_tools import (
@@ -39,6 +40,7 @@ JsonValue = Union[None, bool, int, float, str, list["JsonValue"], dict[str, "Jso
 DatePreset = Literal["last_7_days", "this_month", "previous_month"]
 
 STALE_RUNNING_AFTER = datetime.timedelta(minutes=15)
+PARTIAL_RESPONSE_WRITE_INTERVAL = datetime.timedelta(milliseconds=500)
 SUMMARY_TOOL_NAMES = frozenset(
     {
         "get_user_profile_memory",
@@ -93,7 +95,6 @@ def process_advisor_run(*, run_id: int, client: OpenRouterClient | None = None) 
 
     tool_outputs: list[ToolOutput] = []
     try:
-        _save_partial(run, "Planning advisor answer...")
         memory_document = get_user_profile_memory(run.conversation.user)
         planned_tool_calls = plan_advisor_tools(
             client=effective_client,
@@ -108,11 +109,9 @@ def process_advisor_run(*, run_id: int, client: OpenRouterClient | None = None) 
         tool_outputs, tool_trace = _execute_tool_calls(run, tool_calls)
         _save_trace(run, tool_trace)
         _stop_if_canceled(run)
-        _save_partial(run, "Drafting advisor response...")
-        answer = generate_advisor_answer(
+        answer = _stream_answer(
+            run=run,
             client=effective_client,
-            conversation=run.conversation,
-            current_user_message=run.user_message,
             tool_outputs=tool_outputs,
         )
         _stop_if_canceled(run)
@@ -176,6 +175,31 @@ def _save_partial(run: AdvisorRun, text: str) -> None:
 def _save_trace(run: AdvisorRun, trace: list[ToolTraceEntry]) -> None:
     run.tool_trace = trace
     run.save(update_fields=["tool_trace", "updated_at"])
+
+
+def _stream_answer(*, run: AdvisorRun, client: OpenRouterClient, tool_outputs: list[ToolOutput]) -> AdvisorAnswer:
+    streamed_content = ""
+    last_saved_at = timezone.now() - PARTIAL_RESPONSE_WRITE_INTERVAL
+
+    def save_delta(delta: str) -> None:
+        nonlocal last_saved_at
+        nonlocal streamed_content
+        streamed_content = f"{streamed_content}{delta}"
+        now = timezone.now()
+        if now - last_saved_at >= PARTIAL_RESPONSE_WRITE_INTERVAL:
+            _save_partial(run, streamed_content)
+            last_saved_at = now
+        _stop_if_canceled(run)
+
+    answer = stream_advisor_answer(
+        client=client,
+        conversation=run.conversation,
+        current_user_message=run.user_message,
+        tool_outputs=tool_outputs,
+        on_delta=save_delta,
+    )
+    _save_partial(run, answer.content)
+    return answer
 
 
 def _mark_failed(run: AdvisorRun, message: str) -> None:

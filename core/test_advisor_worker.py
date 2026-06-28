@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+from collections.abc import Callable
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
@@ -8,7 +9,7 @@ from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from core.advisor_prompting import AdvisorAnswer
+from core.advisor_prompting import AdvisorAnswer, ToolOutput
 from core.advisor_worker import cancel_advisor_run, mark_stale_running_runs, process_next_advisor_run
 from core.models import AdvisorConversation, AdvisorMemory, AdvisorMessage, AdvisorRun
 
@@ -34,7 +35,7 @@ class AdvisorWorkerTests(TestCase):
         )
 
     @patch("core.advisor_worker.rewrite_advisor_memory", return_value="")
-    @patch("core.advisor_worker.generate_advisor_answer")
+    @patch("core.advisor_worker.stream_advisor_answer")
     @patch("core.advisor_worker.plan_advisor_tools")
     def test_worker_processes_pending_run_to_completed_message(
         self,
@@ -51,7 +52,7 @@ class AdvisorWorkerTests(TestCase):
         run.refresh_from_db()
         self.assertTrue(processed)
         self.assertEqual(run.status, AdvisorRun.STATUS_COMPLETED)
-        self.assertEqual(run.partial_response, "Drafting advisor response...")
+        self.assertEqual(run.partial_response, "Direct answer: no.")
         self.assertEqual(run.final_response, "Direct answer: no.")
         self.assertEqual(run.model, "answer-model")
         self.assertEqual(
@@ -70,9 +71,47 @@ class AdvisorWorkerTests(TestCase):
         self.assertEqual(assistant_message.linked_run, run)
         self.assertTrue(mock_rewrite.called)
 
+    @patch("core.advisor_worker.rewrite_advisor_memory", return_value="")
+    @patch("core.advisor_worker.stream_advisor_answer")
+    @patch("core.advisor_worker.plan_advisor_tools")
+    def test_worker_saves_streamed_answer_deltas(
+        self,
+        mock_plan: Mock,
+        mock_answer: Mock,
+        _mock_rewrite: Mock,
+    ) -> None:
+        run = self._create_run()
+        mock_plan.return_value = []
+
+        def stream_answer(
+            *,
+            client: object,
+            conversation: AdvisorConversation,
+            current_user_message: AdvisorMessage,
+            tool_outputs: list[ToolOutput],
+            on_delta: Callable[[str], None],
+        ) -> AdvisorAnswer:
+            self.assertIsNotNone(client)
+            self.assertEqual(conversation, self.conversation)
+            self.assertEqual(current_user_message, self.user_message)
+            self.assertIsInstance(tool_outputs, list)
+            on_delta("Direct ")
+            on_delta("answer.")
+            return AdvisorAnswer(content="Direct answer.", model="answer-model")
+
+        mock_answer.side_effect = stream_answer
+
+        processed = process_next_advisor_run()
+
+        run.refresh_from_db()
+        self.assertTrue(processed)
+        self.assertEqual(run.status, AdvisorRun.STATUS_COMPLETED)
+        self.assertEqual(run.partial_response, "Direct answer.")
+        self.assertEqual(run.final_response, "Direct answer.")
+
     @patch("core.advisor_worker.timezone.localdate", return_value=datetime.date(2026, 6, 15))
     @patch("core.advisor_worker.rewrite_advisor_memory", return_value="")
-    @patch("core.advisor_worker.generate_advisor_answer")
+    @patch("core.advisor_worker.stream_advisor_answer")
     @patch("core.advisor_worker.plan_advisor_tools")
     def test_worker_adds_baseline_app_data_tools_for_starter_requests(
         self,
@@ -106,7 +145,7 @@ class AdvisorWorkerTests(TestCase):
 
     @patch("core.advisor_worker.timezone.localdate", return_value=datetime.date(2026, 6, 15))
     @patch("core.advisor_worker.rewrite_advisor_memory", return_value="")
-    @patch("core.advisor_worker.generate_advisor_answer")
+    @patch("core.advisor_worker.stream_advisor_answer")
     @patch("core.advisor_worker.plan_advisor_tools")
     def test_worker_defaults_budget_position_to_current_month_when_month_is_missing(
         self,
@@ -130,7 +169,7 @@ class AdvisorWorkerTests(TestCase):
         )
 
     @patch("core.advisor_worker.rewrite_advisor_memory")
-    @patch("core.advisor_worker.generate_advisor_answer")
+    @patch("core.advisor_worker.stream_advisor_answer")
     @patch("core.advisor_worker.plan_advisor_tools")
     def test_worker_rewrites_memory_after_completed_answer(
         self,
@@ -155,7 +194,7 @@ class AdvisorWorkerTests(TestCase):
         self.assertTrue(mock_rewrite.called)
 
     @patch("core.advisor_worker.rewrite_advisor_memory", side_effect=RuntimeError("rewrite failed"))
-    @patch("core.advisor_worker.generate_advisor_answer")
+    @patch("core.advisor_worker.stream_advisor_answer")
     @patch("core.advisor_worker.plan_advisor_tools")
     def test_memory_rewrite_failure_does_not_fail_answer(
         self,
@@ -234,7 +273,7 @@ class AdvisorWorkerTests(TestCase):
         self.assertFalse(AdvisorMessage.objects.filter(role=AdvisorMessage.ROLE_ASSISTANT).exists())
 
     @patch("core.advisor_worker.rewrite_advisor_memory", return_value="")
-    @patch("core.advisor_worker.generate_advisor_answer")
+    @patch("core.advisor_worker.stream_advisor_answer")
     @patch("core.advisor_worker.plan_advisor_tools")
     def test_missing_facts_do_not_move_run_to_waiting_state(
         self,

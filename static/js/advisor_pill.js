@@ -45,6 +45,7 @@
     messages: [],
     memory: { content: "", updated_at: null },
     runs: new Map(),
+    eventSources: new Map(),
     pollTimers: new Map(),
     activeTab: "chat",
     isEditingMemory: false,
@@ -134,7 +135,7 @@
       const pendingRuns = payload.pending_runs || [];
       pendingRuns.forEach((run) => {
         state.runs.set(run.id, run);
-        startPolling(run);
+        startRunUpdates(run);
       });
       renderConversationOptions();
       renderMemory();
@@ -176,7 +177,7 @@
       state.conversations = upsertConversation(state.conversations, payload.conversation);
       (payload.runs || []).forEach((run) => {
         state.runs.set(run.id, run);
-        startPolling(run);
+        startRunUpdates(run);
       });
       renderConversationOptions();
       renderMessages(shouldScroll || isNearMessageBottom());
@@ -230,7 +231,7 @@
       state.conversations = upsertConversation(state.conversations, payload.conversation);
       state.messages.push(payload.message);
       state.runs.set(payload.run.id, payload.run);
-      startPolling(payload.run);
+      startRunUpdates(payload.run);
       input.value = "";
       resizeChatInput();
       renderConversationOptions();
@@ -350,6 +351,59 @@
     renderMemory();
   }
 
+  function startRunUpdates(run) {
+    if (!run || !activeStatuses.has(run.status)) {
+      stopEventSource(run ? run.id : null);
+      stopPolling(run ? run.id : null);
+      return;
+    }
+    if (typeof window.EventSource === "function") {
+      startEventSource(run);
+      return;
+    }
+    startPolling(run);
+  }
+
+  function startEventSource(run) {
+    if (!run || state.eventSources.has(run.id)) {
+      return;
+    }
+    stopPolling(run.id);
+    const source = new window.EventSource(SCRIPT_PREFIX + `/api/advisor/runs/${run.id}/events/`, {
+      withCredentials: true,
+    });
+    state.eventSources.set(run.id, source);
+    source.addEventListener("run", (event) => handleRunEvent(event, false));
+    source.addEventListener("done", (event) => handleRunEvent(event, true));
+    source.onerror = () => {
+      stopEventSource(run.id);
+      const latestRun = state.runs.get(run.id) || run;
+      if (activeStatuses.has(latestRun.status)) {
+        startPolling(latestRun);
+      }
+    };
+  }
+
+  function handleRunEvent(event, isDone) {
+    let payload = {};
+    try {
+      payload = JSON.parse(event.data || "{}");
+    } catch {
+      return;
+    }
+    const run = payload.run;
+    if (!run) {
+      return;
+    }
+    const previousRun = state.runs.get(run.id);
+    state.runs.set(run.id, run);
+    if (isDone || terminalStatuses.has(run.status)) {
+      stopEventSource(run.id);
+      stopPolling(run.id);
+    }
+    handleRunUpdate(run, previousRun).catch(() => updateRunIndicators());
+  }
+
   function startPolling(run) {
     if (!run || !activeStatuses.has(run.status) || state.pollTimers.has(run.id)) {
       return;
@@ -364,33 +418,52 @@
     try {
       const payload = await advisorFetch(`/api/advisor/runs/${runId}/`);
       const run = payload.run;
-      const wasActive = previousRun && activeStatuses.has(previousRun.status);
       state.runs.set(run.id, run);
-      if (state.activeConversationId === run.conversation_id) {
-        renderMessages(isNearMessageBottom());
-      }
-      if (terminalStatuses.has(run.status)) {
-        stopPolling(run.id);
-        if (state.activeConversationId === run.conversation_id) {
-          await loadConversation(run.conversation_id, { silent: true, scroll: isNearMessageBottom() });
-        }
-        await refreshMemory({ silent: true });
-        if (wasActive && !state.isOpen && (run.final_markdown || run.error)) {
-          state.unread = true;
-        }
-      }
-      updateRunIndicators();
+      await handleRunUpdate(run, previousRun);
     } catch {
       updateRunIndicators();
     }
   }
 
   function stopPolling(runId) {
+    if (!runId) {
+      return;
+    }
     const timer = state.pollTimers.get(runId);
     if (timer) {
       window.clearInterval(timer);
       state.pollTimers.delete(runId);
     }
+  }
+
+  function stopEventSource(runId) {
+    if (!runId) {
+      return;
+    }
+    const source = state.eventSources.get(runId);
+    if (source) {
+      source.close();
+      state.eventSources.delete(runId);
+    }
+  }
+
+  async function handleRunUpdate(run, previousRun) {
+    const wasActive = previousRun && activeStatuses.has(previousRun.status);
+    if (state.activeConversationId === run.conversation_id) {
+      renderMessages(isNearMessageBottom());
+    }
+    if (terminalStatuses.has(run.status)) {
+      stopEventSource(run.id);
+      stopPolling(run.id);
+      if (state.activeConversationId === run.conversation_id) {
+        await loadConversation(run.conversation_id, { silent: true, scroll: isNearMessageBottom() });
+      }
+      await refreshMemory({ silent: true });
+      if (wasActive && !state.isOpen && (run.final_markdown || run.error)) {
+        state.unread = true;
+      }
+    }
+    updateRunIndicators();
   }
 
   async function advisorFetch(path, options) {
@@ -551,6 +624,10 @@
       renderAssistantBubble(run.final_markdown || run.error, run.updated_at);
       return;
     }
+    if (activeStatuses.has(run.status) && run.partial_markdown) {
+      renderAssistantBubble(run.partial_markdown, run.updated_at, { streaming: true });
+      return;
+    }
     if (run.status === "failed") {
       renderAssistantBubble("AI Advisor could not complete the request.", run.updated_at);
       return;
@@ -562,9 +639,11 @@
     renderAssistantLoadingBubble(run.updated_at);
   }
 
-  function renderAssistantBubble(markdown, timestamp) {
+  function renderAssistantBubble(markdown, timestamp, options) {
+    const isStreaming = options && options.streaming;
     const bubble = document.createElement("div");
     bubble.className = "advisor-message advisor-message-assistant";
+    bubble.classList.toggle("advisor-message-streaming", Boolean(isStreaming));
 
     const meta = document.createElement("div");
     meta.className = "advisor-message-meta";
@@ -576,12 +655,22 @@
     const content = document.createElement("div");
     content.className = "advisor-message-content";
     renderSafeMarkdown(content, markdown);
+    if (isStreaming) {
+      content.appendChild(streamingCursor());
+    }
     bubble.appendChild(meta);
     bubble.appendChild(content);
-    if (markdown) {
+    if (markdown && !isStreaming) {
       bubble.appendChild(assistantMessageActions(markdown));
     }
     messagesEl.appendChild(bubble);
+  }
+
+  function streamingCursor() {
+    const cursor = document.createElement("span");
+    cursor.className = "advisor-stream-cursor";
+    cursor.setAttribute("aria-hidden", "true");
+    return cursor;
   }
 
   function renderAssistantLoadingBubble(timestamp) {
@@ -1057,12 +1146,16 @@
     return Array.from(state.runs.values()).some((run) => activeStatuses.has(run.status));
   }
 
+  function hasStreamingRun() {
+    return Array.from(state.runs.values()).some((run) => activeStatuses.has(run.status) && run.partial_markdown);
+  }
+
   function updateRunIndicators() {
     const isActive = hasActiveRun();
     activeDot.classList.toggle("d-none", !isActive);
     unreadDot.classList.toggle("d-none", !state.unread);
     if (!state.loading) {
-      statusEl.textContent = isActive ? "Running" : "Ready";
+      statusEl.textContent = hasStreamingRun() ? "Streaming" : isActive ? "Running" : "Ready";
     }
   }
 

@@ -30,6 +30,7 @@ from core.views_advisor import (
     advisor_message_create_view,
     advisor_run_cancel_view,
     advisor_run_detail_view,
+    advisor_run_events_view,
 )
 from core.views_auth import (
     CustomDisableView,
@@ -161,6 +162,7 @@ urlpatterns = [
         name="advisor_message_create",
     ),
     path("api/advisor/runs/<int:pk>/", advisor_run_detail_view, name="advisor_run_detail"),
+    path("api/advisor/runs/<int:pk>/events/", advisor_run_events_view, name="advisor_run_events"),
     path("api/advisor/runs/<int:pk>/cancel/", advisor_run_cancel_view, name="advisor_run_cancel"),
     path("api/advisor/memory/", advisor_memory_view, name="advisor_memory"),
     path("category-spend/", category_spend_page_view, name="category_spend"),

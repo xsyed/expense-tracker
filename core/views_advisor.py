@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import time
+from collections.abc import Iterator
 from typing import Union, cast
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 
@@ -22,6 +24,16 @@ RECENT_CONVERSATION_LIMIT = 10
 NEW_CONVERSATION_TITLE = "New conversation"
 CONVERSATION_TITLE_MAX_LENGTH = 80
 CONVERSATION_TITLE_PREFIX_LENGTH = 77
+SSE_POLL_SECONDS = 0.5
+SSE_HEARTBEAT_SECONDS = 10.0
+TERMINAL_RUN_STATUSES = frozenset(
+    {
+        AdvisorRun.STATUS_COMPLETED,
+        AdvisorRun.STATUS_WAITING_FOR_USER,
+        AdvisorRun.STATUS_FAILED,
+        AdvisorRun.STATUS_CANCELED,
+    }
+)
 
 
 @login_required
@@ -115,6 +127,16 @@ def advisor_message_create_view(request: HttpRequest, pk: int) -> JsonResponse:
 def advisor_run_detail_view(request: HttpRequest, pk: int) -> JsonResponse:
     run = _get_user_run(_request_user(request), pk)
     return JsonResponse({"run": _serialize_run(run)})
+
+
+@login_required
+@require_GET
+def advisor_run_events_view(request: HttpRequest, pk: int) -> StreamingHttpResponse:
+    run = _get_user_run(_request_user(request), pk)
+    response = StreamingHttpResponse(_stream_run_events(run.id), content_type="text/event-stream")
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"
+    return response
 
 
 @login_required
@@ -240,6 +262,33 @@ def _serialize_memory(memory: AdvisorMemory) -> JsonObject:
         "content": memory.content,
         "updated_at": memory.updated_at.isoformat(),
     }
+
+
+def _stream_run_events(run_id: int) -> Iterator[str]:
+    last_updated_at = ""
+    last_heartbeat_at = time.monotonic()
+    while True:
+        try:
+            run = AdvisorRun.objects.select_related("conversation", "user_message").get(pk=run_id)
+        except AdvisorRun.DoesNotExist:
+            return
+        is_terminal = run.status in TERMINAL_RUN_STATUSES
+        updated_at = run.updated_at.isoformat()
+        if updated_at != last_updated_at or is_terminal:
+            event_name = "done" if is_terminal else "run"
+            yield _sse_event(event_name, {"run": _serialize_run(run)})
+            if is_terminal:
+                return
+            last_updated_at = updated_at
+        now = time.monotonic()
+        if now - last_heartbeat_at >= SSE_HEARTBEAT_SECONDS:
+            yield ": heartbeat\n\n"
+            last_heartbeat_at = now
+        time.sleep(SSE_POLL_SECONDS)
+
+
+def _sse_event(event_name: str, payload: JsonObject) -> str:
+    return f"event: {event_name}\ndata: {json.dumps(payload)}\n\n"
 
 
 def _error_response(message: str) -> JsonResponse:

@@ -3,10 +3,11 @@ from __future__ import annotations
 import datetime
 import json
 import urllib.error
+from collections.abc import Callable
 from decimal import Decimal
 from email.message import Message
 from typing import ClassVar
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -22,6 +23,7 @@ from core.advisor_prompting import (
     parse_memory_rewrite,
     plan_advisor_tools,
     rewrite_advisor_memory,
+    stream_advisor_answer,
 )
 from core.advisor_provider import OpenRouterClient, OpenRouterError, OpenRouterMessage, OpenRouterResponse
 from core.models import Account, Category, ExpenseMonth, Transaction
@@ -33,6 +35,10 @@ class FakeOpenRouterClient(OpenRouterClient):
     def __init__(self, response: OpenRouterResponse) -> None:
         self.response = response
         self.called = False
+        self.stream_called = False
+        self.stream_deltas: list[str] = []
+        self.stream_model = ""
+        self.stream_message_count = 0
         self.temperature: float | None = None
 
     def chat_completion(
@@ -44,6 +50,22 @@ class FakeOpenRouterClient(OpenRouterClient):
     ) -> OpenRouterResponse:
         self.called = True
         self.temperature = temperature
+        return self.response
+
+    def stream_chat_completion(
+        self,
+        *,
+        model: str,
+        messages: list[OpenRouterMessage],
+        on_delta: Callable[[str], None],
+        temperature: float = 0.2,
+    ) -> OpenRouterResponse:
+        self.stream_called = True
+        self.stream_model = model
+        self.stream_message_count = len(messages)
+        self.temperature = temperature
+        for delta in self.stream_deltas:
+            on_delta(delta)
         return self.response
 
 
@@ -134,6 +156,51 @@ class AdvisorPromptingTests(TestCase):
 
         self.assertEqual(result.content, "## Direct answer\nNo.")
         self.assertEqual(result.model, "answer-model")
+
+    @patch("core.advisor_provider.urllib.request.urlopen")
+    def test_openrouter_client_streams_assistant_deltas(self, mock_urlopen: Mock) -> None:
+        response = MagicMock()
+        response.__iter__.return_value = iter(
+            [
+                b'data: {"model":"answer-model","choices":[{"delta":{"content":"Direct "}}]}\n',
+                b'data: {"model":"answer-model","choices":[{"delta":{"content":"answer."}}]}\n',
+                b"data: [DONE]\n",
+            ]
+        )
+        response.__enter__.return_value = response
+        response.__exit__.return_value = None
+        mock_urlopen.return_value = response
+        deltas: list[str] = []
+        client = OpenRouterClient(api_key="configured")
+
+        result = client.stream_chat_completion(
+            model="answer-model",
+            messages=[{"role": "user", "content": "Hi"}],
+            on_delta=deltas.append,
+        )
+
+        request = mock_urlopen.call_args.args[0]
+        payload = json.loads(request.data.decode("utf-8"))
+        self.assertTrue(payload["stream"])
+        self.assertEqual(deltas, ["Direct ", "answer."])
+        self.assertEqual(result.content, "Direct answer.")
+        self.assertEqual(result.model, "answer-model")
+
+    @patch("core.advisor_provider.urllib.request.urlopen")
+    def test_openrouter_client_stream_rejects_malformed_chunk(self, mock_urlopen: Mock) -> None:
+        response = MagicMock()
+        response.__iter__.return_value = iter([b"data: not-json\n"])
+        response.__enter__.return_value = response
+        response.__exit__.return_value = None
+        mock_urlopen.return_value = response
+        client = OpenRouterClient(api_key="configured")
+
+        with self.assertRaises(OpenRouterError):
+            client.stream_chat_completion(
+                model="answer-model",
+                messages=[{"role": "user", "content": "Hi"}],
+                on_delta=lambda _delta: None,
+            )
 
     @patch("core.advisor_provider.urllib.request.urlopen")
     def test_openrouter_client_raises_provider_error_for_model_failure(self, mock_urlopen: Mock) -> None:
@@ -243,6 +310,24 @@ class AdvisorPromptingTests(TestCase):
         self.assertTrue(client.called)
         self.assertFalse(answer.follow_up_required)
         self.assertEqual(answer.content, "Direct answer: no.")
+
+    def test_stream_answer_generation_forwards_deltas(self) -> None:
+        client = FakeOpenRouterClient(OpenRouterResponse(content="Direct answer.", model="answer-model", raw={}))
+        client.stream_deltas = ["Direct ", "answer."]
+        deltas: list[str] = []
+
+        answer = stream_advisor_answer(
+            client=client,
+            conversation=self.conversation,
+            current_user_message=self.current_message,
+            tool_outputs=[],
+            on_delta=deltas.append,
+        )
+
+        self.assertEqual(deltas, ["Direct ", "answer."])
+        self.assertEqual(answer.content, "Direct answer.")
+        self.assertEqual(answer.model, "answer-model")
+        self.assertTrue(client.stream_called)
 
     def test_memory_rewrite_uses_planner_model_temperature_zero(self) -> None:
         client = FakeOpenRouterClient(
