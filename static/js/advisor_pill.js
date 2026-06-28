@@ -52,6 +52,8 @@
     isOpen: readOpenState(),
     unread: false,
     loading: false,
+    memoryLoading: false,
+    memoryRequestId: 0,
   };
 
   pill.addEventListener("click", () => setOpen(true));
@@ -267,6 +269,7 @@
     });
     if (activeTab === "memory") {
       renderMemory();
+      refreshMemory();
     } else if (state.isOpen) {
       window.setTimeout(() => input.focus(), 0);
     }
@@ -283,11 +286,18 @@
 
   async function refreshMemory(options) {
     const silent = options && options.silent;
+    state.memoryRequestId += 1;
+    const requestId = state.memoryRequestId;
     if (!silent) {
+      state.memoryLoading = true;
+      renderMemory();
       setLoading(true, "Loading context");
     }
     try {
       const payload = await advisorFetch("/api/advisor/memory/");
+      if (requestId !== state.memoryRequestId) {
+        return;
+      }
       state.memory = payload.memory || { content: "", updated_at: null };
       renderMemory();
       setError("");
@@ -297,6 +307,8 @@
       }
     } finally {
       if (!silent) {
+        state.memoryLoading = false;
+        renderMemory();
         setLoading(false);
       }
     }
@@ -385,6 +397,7 @@
     const method = options && options.method ? options.method : "GET";
     const request = {
       method,
+      cache: method === "GET" ? "no-store" : "default",
       credentials: "same-origin",
       headers: {
         Accept: "application/json",
@@ -432,7 +445,9 @@
   function renderMemory() {
     memoryDocumentEl.textContent = "";
     const content = state.memory.content || "";
-    if (content) {
+    if (state.memoryLoading && !state.isEditingMemory) {
+      memoryDocumentEl.appendChild(loadingSpinner("Loading memory"));
+    } else if (content) {
       memoryDocumentEl.textContent = content;
     } else {
       appendEmptyState(memoryDocumentEl, "No saved memory yet.");
@@ -517,7 +532,7 @@
 
   function renderMessage(message) {
     if (message.role === "assistant") {
-      renderAssistantBubble(message.content, "assistant");
+      renderAssistantBubble(message.content, message.created_at);
       return;
     }
     const bubble = document.createElement("div");
@@ -526,24 +541,37 @@
     content.className = "advisor-message-content";
     content.textContent = message.content;
     bubble.appendChild(content);
+    bubble.appendChild(messageTimeMeta(message.created_at));
     bubble.appendChild(userMessageActions(message.content));
     messagesEl.appendChild(bubble);
   }
 
   function renderRun(run) {
-    const content = run.final_markdown || run.partial_markdown || run.error || statusText(run.status);
-    renderAssistantBubble(content, statusText(run.status));
+    if (run.final_markdown || run.error) {
+      renderAssistantBubble(run.final_markdown || run.error, run.updated_at);
+      return;
+    }
+    if (run.status === "failed") {
+      renderAssistantBubble("AI Advisor could not complete the request.", run.updated_at);
+      return;
+    }
+    if (run.status === "canceled") {
+      renderAssistantBubble("Request canceled.", run.updated_at);
+      return;
+    }
+    renderAssistantLoadingBubble(run.updated_at);
   }
 
-  function renderAssistantBubble(markdown, label) {
+  function renderAssistantBubble(markdown, timestamp) {
     const bubble = document.createElement("div");
     bubble.className = "advisor-message advisor-message-assistant";
 
     const meta = document.createElement("div");
     meta.className = "advisor-message-meta";
     const labelEl = document.createElement("span");
-    labelEl.textContent = label;
+    labelEl.textContent = "AI Advisor";
     meta.appendChild(labelEl);
+    meta.appendChild(messageTime(timestamp));
 
     const content = document.createElement("div");
     content.className = "advisor-message-content";
@@ -554,6 +582,50 @@
       bubble.appendChild(assistantMessageActions(markdown));
     }
     messagesEl.appendChild(bubble);
+  }
+
+  function renderAssistantLoadingBubble(timestamp) {
+    const bubble = document.createElement("div");
+    bubble.className = "advisor-message advisor-message-assistant advisor-message-loading";
+
+    const meta = document.createElement("div");
+    meta.className = "advisor-message-meta";
+    const labelEl = document.createElement("span");
+    labelEl.textContent = "AI Advisor";
+    meta.appendChild(labelEl);
+    meta.appendChild(messageTime(timestamp));
+
+    bubble.appendChild(meta);
+    bubble.appendChild(loadingSpinner("Thinking"));
+    messagesEl.appendChild(bubble);
+  }
+
+  function loadingSpinner(label) {
+    const wrap = document.createElement("div");
+    wrap.className = "advisor-loading";
+    wrap.setAttribute("role", "status");
+    wrap.setAttribute("aria-label", label);
+
+    const spinner = document.createElement("span");
+    spinner.className = "advisor-spinner";
+    spinner.setAttribute("aria-hidden", "true");
+    wrap.appendChild(spinner);
+    return wrap;
+  }
+
+  function messageTimeMeta(timestamp) {
+    const meta = document.createElement("div");
+    meta.className = "advisor-message-meta advisor-message-meta-time";
+    meta.appendChild(messageTime(timestamp));
+    return meta;
+  }
+
+  function messageTime(timestamp) {
+    const time = document.createElement("time");
+    time.className = "advisor-message-time";
+    time.dateTime = timestamp || "";
+    time.textContent = formatMessageTime(timestamp);
+    return time;
   }
 
   function userMessageActions(messageContent) {
@@ -942,16 +1014,17 @@
     return content.length > 80 ? `${content.slice(0, 77)}...` : content;
   }
 
-  function statusText(status) {
-    const labels = {
-      pending: "Queued",
-      running: "Running",
-      waiting_for_user: "Follow-up needed",
-      completed: "Completed",
-      failed: "Failed",
-      canceled: "Canceled",
-    };
-    return labels[status] || "Advisor";
+  function formatMessageTime(timestamp) {
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+    return new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(date);
   }
 
   function setLoading(isLoading, status) {
