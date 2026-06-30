@@ -7,6 +7,12 @@ Format: **What went wrong → Root cause → Rule to enforce**
 
 <!-- Add new lessons below this line. Most recent first. -->
 
+## CSV import behavior needs code and data proof before diagnosis
+
+**What went wrong**: User had to explicitly demand no assumptions on CSV auto-mapping behavior.
+**Root cause**: Risk of guessing from filenames/account names instead of tracing mapper code and saved profile data.
+**Rule**: For import/mapping bugs, inspect frontend flow, backend matching logic, and stored profile rows before stating cause.
+
 ## Chat composer button height must follow measured textarea height
 
 **What went wrong**: Send button still looked misaligned after matching the nominal default height.

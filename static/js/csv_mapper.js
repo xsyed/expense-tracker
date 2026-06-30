@@ -117,6 +117,8 @@ class MappingPanel {
 
   async _checkProfiles() {
     if (!window.CSV_MAPPER_URLS.matchProfiles) return;
+    const existingSelect = this.element.querySelector(".profile-select");
+    if (existingSelect) existingSelect.remove();
     try {
       const resp = await fetch(window.CSV_MAPPER_URLS.matchProfiles, {
         method: "POST",
@@ -377,12 +379,18 @@ class MappingPanel {
     this._renderPreview(card);
   }
 
-  _onHeaderToggle(card) {
+  async _onHeaderToggle(card) {
     this.hasHeader = !card.querySelector(".headerless-toggle").checked;
+    this.profileApplied = false;
+    this.appliedProfileName = "";
+    const badge = card.querySelector(".status-badge");
+    badge.innerHTML = "";
+    badge.classList.add("d-none");
     this._deriveFromRaw();
     this._rebuildMappingBody(card);
     this.validationFired = false;
     this._renderPreview(card);
+    await this._checkProfiles();
   }
 
   _rebuildMappingBody(card) {
