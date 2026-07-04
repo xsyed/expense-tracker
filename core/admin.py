@@ -6,6 +6,10 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 from .models import (
+    AdvisorConversation,
+    AdvisorMemory,
+    AdvisorMessage,
+    AdvisorRun,
     Category,
     CategoryBudget,
     CategoryGroup,
@@ -96,3 +100,35 @@ class GoalContributionAdmin(admin.ModelAdmin[GoalContribution]):
 class UserGridPreferenceAdmin(admin.ModelAdmin[UserGridPreference]):
     list_display = ("user", "column_visibility")
     search_fields = ("user__email",)
+
+
+@admin.register(AdvisorConversation)
+class AdvisorConversationAdmin(admin.ModelAdmin[AdvisorConversation]):
+    list_display = ("title", "user", "is_archived", "created_at", "updated_at")
+    list_filter = ("is_archived", "created_at")
+    search_fields = ("title", "summary", "user__email")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(AdvisorMessage)
+class AdvisorMessageAdmin(admin.ModelAdmin[AdvisorMessage]):
+    list_display = ("conversation", "role", "created_at", "linked_run")
+    list_filter = ("role", "created_at")
+    search_fields = ("content", "conversation__title", "conversation__user__email")
+    readonly_fields = ("created_at",)
+
+
+@admin.register(AdvisorRun)
+class AdvisorRunAdmin(admin.ModelAdmin[AdvisorRun]):
+    list_display = ("conversation", "user_message", "status", "model", "created_at", "updated_at")
+    list_filter = ("status", "model", "created_at")
+    search_fields = ("conversation__title", "conversation__user__email", "final_response", "error_message")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(AdvisorMemory)
+class AdvisorMemoryAdmin(admin.ModelAdmin[AdvisorMemory]):
+    list_display = ("user", "created_at", "updated_at")
+    list_filter = ("created_at", "updated_at")
+    search_fields = ("user__email", "content")
+    readonly_fields = ("created_at", "updated_at")

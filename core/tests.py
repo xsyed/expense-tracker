@@ -258,6 +258,52 @@ class TemplateRenderTests(TestCase):
         self.assertContains(response, "Not Feasible")
 
 
+class AdvisorPillUiTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="advisor-ui@example.com", password="Pass!1234")
+        TOTPDevice.objects.create(user=self.user, name="default", confirmed=True)
+        self.client.force_login(self.user)
+        self.month = ExpenseMonth.objects.create(
+            user=self.user,
+            label="Jun 26",
+            month=datetime.date(2026, 6, 1),
+        )
+
+    def test_home_page_includes_advisor_pill(self):
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="advisor-copilot-root"')
+        self.assertContains(response, "static/js/advisor_pill.js")
+        self.assertContains(response, "last 7 days brief")
+        self.assertContains(response, 'id="advisor-fullscreen-toggle"')
+        self.assertContains(response, 'id="advisor-memory-tab"')
+        self.assertContains(response, "Advisor Memory")
+        self.assertContains(response, 'id="advisor-memory-content"')
+        self.assertNotContains(response, "Pending suggestions stay inactive")
+        self.assertNotContains(response, "stored financial records")
+
+    def test_insights_page_includes_advisor_pill(self):
+        response = self.client.get("/insights/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="advisor-copilot-root"')
+
+    def test_month_detail_page_includes_advisor_pill(self):
+        response = self.client.get(f"/months/{self.month.pk}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="advisor-copilot-root"')
+
+    def test_unauthenticated_page_excludes_advisor_pill(self):
+        self.client.logout()
+
+        response = self.client.get("/account/login/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'id="advisor-copilot-root"')
+
+
 class CsvImportUiTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="csv@example.com", password="Pass!1234")

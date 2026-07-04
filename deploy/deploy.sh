@@ -9,6 +9,7 @@ docker pull "$IMAGE"
 docker compose -f docker-compose.prod.yml up -d
 sleep 15
 curl -sf http://localhost:8000/health/
+docker inspect --format='{{.State.Running}}' expense-tracker-advisor-worker | grep -q true
 rm -rf ./deploy
 docker cp expense-tracker-web:/app/deploy ./deploy
 chmod +x ./deploy/*.sh

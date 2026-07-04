@@ -1,0 +1,739 @@
+<style>
+  .advisor-copilot-root {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 1085;
+    pointer-events: none;
+  }
+
+  .advisor-copilot-root.advisor-fullscreen {
+    inset: 0;
+    pointer-events: auto;
+  }
+
+  .advisor-copilot-root * {
+    box-sizing: border-box;
+  }
+
+  .advisor-pill {
+    pointer-events: auto;
+    min-width: 8.5rem;
+    min-height: 3rem;
+    border: 0;
+    border-radius: 999px;
+    background: #1f2937;
+    color: #fff;
+    box-shadow: 0 0.75rem 1.75rem rgba(15, 23, 42, 0.28);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1rem;
+    font-weight: 700;
+  }
+
+  .advisor-pill:hover,
+  .advisor-pill:focus {
+    background: #111827;
+    color: #fff;
+  }
+
+  .advisor-active-dot,
+  .advisor-unread-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+
+  .advisor-active-dot {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 999px;
+    background: #22c55e;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.8);
+    animation: advisorPulse 1.4s infinite;
+  }
+
+  .advisor-unread-dot {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 999px;
+    background: #ef4444;
+  }
+
+  .advisor-panel {
+    pointer-events: auto;
+    width: min(50.5rem, calc(100vw - 2rem));
+    height: min(43rem, calc(100vh - 2rem));
+    max-height: calc(100vh - 2rem);
+    background: #fff;
+    border: 1px solid #d8dee8;
+    border-radius: 0.5rem;
+    box-shadow: 0 1rem 2.5rem rgba(15, 23, 42, 0.22);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .advisor-fullscreen .advisor-panel {
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .advisor-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+    padding: 0.55rem 0.85rem;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f8fafc;
+  }
+
+  .advisor-fullscreen .advisor-panel-header {
+    padding: 0.65rem clamp(1rem, 3vw, 3rem);
+  }
+
+  .advisor-title {
+    color: #111827;
+    font-size: 0.95rem;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .advisor-status {
+    color: #64748b;
+    font-size: 0.78rem;
+    line-height: 1.2;
+  }
+
+  .advisor-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex: 0 0 auto;
+  }
+
+  .advisor-icon-btn {
+    width: 1.7rem;
+    height: 1.7rem;
+    border: 1px solid #d8dee8;
+    border-radius: 0.375rem;
+    background: #fff;
+    color: #334155;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .advisor-icon-btn:hover,
+  .advisor-icon-btn:focus {
+    background: #eef2f7;
+    color: #0f172a;
+  }
+
+  .advisor-tabbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.35rem;
+    margin-bottom: 5px;
+    padding: 0.65rem 1rem 0;
+    background: #fff;
+  }
+
+  .advisor-fullscreen .advisor-tabbar {
+    padding-inline: clamp(1rem, 3vw, 3rem);
+  }
+
+  .advisor-tabs {
+    display: flex;
+    gap: 0.35rem;
+  }
+
+  .advisor-tab {
+    border: 1px solid #d8dee8;
+    border-bottom-color: #cbd5e1;
+    border-radius: 0.375rem 0.375rem 0 0;
+    background: #f8fafc;
+    color: #475569;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    font-weight: 800;
+    padding: 0.45rem 0.7rem;
+  }
+
+  .advisor-tab:hover,
+  .advisor-tab:focus {
+    color: #0f172a;
+    background: #eef2f7;
+  }
+
+  .advisor-tab.active {
+    color: #1d4ed8;
+    background: #fff;
+    border-color: #bfdbfe;
+    box-shadow: inset 0 -2px 0 #2563eb;
+  }
+
+  .advisor-tab-badge {
+    min-width: 1.1rem;
+    border-radius: 999px;
+    background: #e0f2fe;
+    color: #075985;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.68rem;
+    line-height: 1;
+    padding: 0.18rem 0.3rem;
+  }
+
+  .advisor-history-select {
+    width: min(22rem, 100%);
+    min-height: 2.35rem;
+    margin-left: 0.25rem;
+    align-self: stretch;
+    padding-block: 0.45rem;
+  }
+
+  .advisor-tab-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .advisor-tab-panel.d-none {
+    display: none !important;
+  }
+
+  .advisor-starters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    padding: 0.75rem 1rem 0;
+  }
+
+  .advisor-fullscreen .advisor-starters {
+    padding-inline: clamp(1rem, 4vw, 4rem);
+  }
+
+  .advisor-starter {
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.35rem 0.65rem;
+  }
+
+  .advisor-starter:hover,
+  .advisor-starter:focus {
+    background: #e0f2fe;
+    border-color: #38bdf8;
+    color: #075985;
+  }
+
+  .advisor-error {
+    margin: 0.75rem 1rem 0;
+  }
+
+  .advisor-fullscreen .advisor-error {
+    margin-inline: clamp(1rem, 4vw, 4rem);
+  }
+
+  .advisor-messages {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 0.9rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .advisor-fullscreen .advisor-messages {
+    padding: 1.25rem clamp(1rem, 4vw, 4rem);
+  }
+
+  .advisor-empty {
+    color: #64748b;
+    font-size: 0.85rem;
+    padding: 1.75rem 0.5rem;
+    text-align: center;
+  }
+
+  .advisor-memory-panel {
+    overflow-y: auto;
+    padding: 0.9rem 1rem 1rem;
+    gap: 0.9rem;
+  }
+
+  .advisor-fullscreen .advisor-memory-panel {
+    padding: 1.25rem clamp(1rem, 4vw, 4rem);
+  }
+
+  .advisor-memory-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .advisor-memory-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .advisor-memory-title {
+    color: #111827;
+    font-size: 0.92rem;
+    font-weight: 800;
+    line-height: 1.25;
+  }
+
+  .advisor-memory-note {
+    color: #64748b;
+    font-size: 0.76rem;
+    line-height: 1.35;
+  }
+
+  .advisor-memory-form {
+    border: 1px solid #d8dee8;
+    border-radius: 0.5rem;
+    background: #f8fafc;
+    padding: 0.75rem;
+  }
+
+  .advisor-memory-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .advisor-memory-document {
+    border: 1px solid #d8dee8;
+    border-radius: 0.5rem;
+    background: #fff;
+    padding: 0.7rem;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    color: #334155;
+    font-size: 0.82rem;
+    line-height: 1.4;
+  }
+
+  .advisor-memory-editor {
+    min-height: 14rem;
+    resize: vertical;
+  }
+
+  .advisor-message {
+    max-width: 92%;
+    border-radius: 0.5rem;
+    padding: 0.7rem 0.8rem;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+
+  .advisor-fullscreen .advisor-message {
+    max-width: min(72rem, 86%);
+  }
+
+  .advisor-fullscreen .advisor-message-user {
+    max-width: min(56rem, 72%);
+  }
+
+  .advisor-message-user {
+    align-self: flex-end;
+    background: #2563eb;
+    color: #fff;
+  }
+
+  .advisor-message-assistant {
+    align-self: flex-start;
+    background: #f1f5f9;
+    color: #111827;
+    border: 1px solid #e2e8f0;
+  }
+
+  .advisor-message-streaming {
+    border-color: #bfdbfe;
+    box-shadow: inset 3px 0 0 #2563eb;
+  }
+
+  .advisor-message-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.4rem;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .advisor-message-meta-time {
+    justify-content: flex-end;
+    margin: 0.35rem 0 0;
+  }
+
+  .advisor-message-time {
+    opacity: 0;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: none;
+    transition: opacity 0.16s ease;
+  }
+
+  .advisor-message:hover .advisor-message-time,
+  .advisor-message:focus-within .advisor-message-time {
+    opacity: 1;
+  }
+
+  .advisor-message-user .advisor-message-time {
+    color: rgba(255, 255, 255, 0.78);
+  }
+
+  .advisor-message-content > :last-child {
+    margin-bottom: 0;
+  }
+
+  .advisor-message-content h1,
+  .advisor-message-content h2,
+  .advisor-message-content h3 {
+    margin: 0.65rem 0 0.35rem;
+    font-size: 1rem;
+    font-weight: 800;
+  }
+
+  .advisor-message-content p,
+  .advisor-message-content ul,
+  .advisor-message-content ol,
+  .advisor-message-content pre,
+  .advisor-table-wrap {
+    margin-bottom: 0.55rem;
+  }
+
+  .advisor-message-content pre {
+    background: #0f172a;
+    color: #e5e7eb;
+    border-radius: 0.375rem;
+    padding: 0.65rem;
+    white-space: pre-wrap;
+  }
+
+  .advisor-message-content blockquote {
+    border-left: 3px solid #94a3b8;
+    margin: 0 0 0.55rem;
+    padding: 0.35rem 0.75rem;
+    background: #f8fafc;
+    color: #475569;
+  }
+
+  .advisor-message-content blockquote p:last-child {
+    margin-bottom: 0;
+  }
+
+  .advisor-message-content hr {
+    border: 0;
+    border-top: 1px solid #cbd5e1;
+    margin: 0.75rem 0;
+    opacity: 1;
+  }
+
+  .advisor-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
+  .advisor-markdown-table {
+    min-width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    table-layout: auto;
+  }
+
+  .advisor-markdown-table th,
+  .advisor-markdown-table td {
+    border: 1px solid #cbd5e1;
+    padding: 0.4rem 0.5rem;
+    vertical-align: top;
+  }
+
+  .advisor-markdown-table th {
+    background: #e2e8f0;
+    color: #0f172a;
+    font-weight: 800;
+  }
+
+  .advisor-markdown-table td {
+    background: #fff;
+  }
+
+  .advisor-stream-cursor {
+    display: inline-block;
+    width: 0.45rem;
+    height: 1rem;
+    margin-left: 0.12rem;
+    vertical-align: -0.12rem;
+    background: #2563eb;
+    border-radius: 999px;
+    animation: advisorCursorBlink 1s steps(2, start) infinite;
+  }
+
+  .advisor-message-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    margin-top: 0.55rem;
+  }
+
+  .advisor-loading {
+    min-height: 2.1rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .advisor-spinner {
+    width: 1.35rem;
+    height: 1.35rem;
+    border: 0.18rem solid #cbd5e1;
+    border-top-color: #2563eb;
+    border-radius: 999px;
+    animation: advisorSpin 0.72s linear infinite;
+  }
+
+  .advisor-message-action-btn {
+    border: 1px solid #cbd5e1;
+    border-radius: 0.375rem;
+    background: #fff;
+    color: #334155;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.2rem 0.45rem;
+  }
+
+  .advisor-message-user .advisor-message-action-btn {
+    border-color: rgba(255, 255, 255, 0.42);
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+  }
+
+  .advisor-form {
+    border-top: 1px solid #e5e7eb;
+    padding: 0.75rem 1rem 1rem;
+    background: #fff;
+  }
+
+  .advisor-fullscreen .advisor-form {
+    padding: 1rem clamp(1rem, 4vw, 4rem) 1.25rem;
+  }
+
+  .advisor-form .advisor-starters {
+    padding: 0 0 0.75rem;
+  }
+
+  .advisor-fullscreen .advisor-form .advisor-starters {
+    width: min(72rem, 100%);
+    margin-inline: auto;
+    padding-inline: 0;
+  }
+
+  .advisor-input-row {
+    display: flex;
+    gap: 0.4rem;
+    align-items: flex-end;
+  }
+
+  .advisor-fullscreen .advisor-input-row {
+    width: min(72rem, 100%);
+    margin-inline: auto;
+  }
+
+  .advisor-input {
+    resize: none;
+    min-height: 2.75rem;
+    max-height: 11rem;
+    overflow-y: auto;
+  }
+
+  .advisor-fullscreen .advisor-input {
+    max-height: 16rem;
+  }
+
+  .advisor-send-btn {
+    width: 2.75rem;
+    min-height: 2.75rem;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  @keyframes advisorPulse {
+    70% {
+      box-shadow: 0 0 0 0.45rem rgba(34, 197, 94, 0);
+    }
+
+    100% {
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+    }
+  }
+
+  @keyframes advisorSpin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes advisorCursorBlink {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  @media (max-width: 575.98px) {
+    .advisor-copilot-root {
+      right: 0.5rem;
+      bottom: 0.5rem;
+      left: 0.5rem;
+    }
+
+    .advisor-panel {
+      width: 100%;
+      height: min(40rem, 82dvh);
+      max-height: 82dvh;
+      border-radius: 0.5rem;
+    }
+
+    .advisor-fullscreen .advisor-panel {
+      width: 100vw;
+      height: 100dvh;
+      max-height: 100dvh;
+      border-radius: 0;
+    }
+
+    .advisor-fullscreen .advisor-memory-panel {
+      display: flex;
+      padding: 0.9rem 1rem 1rem;
+    }
+
+    .advisor-pill {
+      margin-left: auto;
+    }
+  }
+</style>
+
+<div id="advisor-copilot-root" class="advisor-copilot-root" data-advisor-root>
+  <button id="advisor-pill" class="advisor-pill" type="button" aria-controls="advisor-panel" aria-expanded="false">
+    <span id="advisor-active-dot" class="advisor-active-dot d-none" aria-hidden="true"></span>
+    <span class="advisor-pill-label">AI Advisor</span>
+    <span id="advisor-unread-dot" class="advisor-unread-dot d-none" aria-label="Unread advisor response"></span>
+  </button>
+
+  <section id="advisor-panel" class="advisor-panel d-none" role="dialog" aria-label="AI Advisor">
+    <header class="advisor-panel-header">
+      <div>
+        <div class="advisor-title">AI Advisor</div>
+        <div id="advisor-status" class="advisor-status d-none" aria-hidden="true">Ready</div>
+      </div>
+      <div class="advisor-header-actions">
+        <button id="advisor-new-chat" class="advisor-icon-btn" type="button" title="New chat" aria-label="New chat">
+          <i class="bi bi-plus-lg" aria-hidden="true"></i>
+        </button>
+        <button id="advisor-fullscreen-toggle" class="advisor-icon-btn" type="button" title="Fullscreen" aria-label="Fullscreen">
+          <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
+        </button>
+        <button id="advisor-close" class="advisor-icon-btn" type="button" title="Minimize" aria-label="Minimize">
+          <i class="bi bi-dash-lg" aria-hidden="true"></i>
+        </button>
+      </div>
+    </header>
+
+    <div class="advisor-tabbar">
+      <div class="advisor-tabs" role="tablist" aria-label="Advisor sections">
+        <button id="advisor-chat-tab" class="advisor-tab active" type="button" role="tab" aria-selected="true" aria-controls="advisor-chat-panel" data-advisor-tab="chat">
+          <i class="bi bi-chat-dots" aria-hidden="true"></i>
+          Chat
+        </button>
+        <button id="advisor-memory-tab" class="advisor-tab" type="button" role="tab" aria-selected="false" aria-controls="advisor-memory-panel" data-advisor-tab="memory">
+          <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
+          Memory
+        </button>
+      </div>
+      <select id="advisor-conversation-select" class="advisor-history-select form-select form-select-sm" aria-label="Conversation history">
+        <option value="">New conversation</option>
+      </select>
+    </div>
+
+    <div id="advisor-error" class="advisor-error alert alert-danger py-2 d-none" role="alert"></div>
+
+    <div id="advisor-chat-panel" class="advisor-tab-panel" role="tabpanel" aria-labelledby="advisor-chat-tab">
+      <div id="advisor-messages" class="advisor-messages" aria-live="polite"></div>
+
+      <form id="advisor-form" class="advisor-form">
+        <div id="advisor-starters" class="advisor-starters">
+          <button class="advisor-starter" type="button" data-advisor-starter="Use my expense-tracker data. How healthy are my finances right now? Show my strengths, risks, and top 3 actions.">Health Check</button>
+          <button class="advisor-starter" type="button" data-advisor-starter="Use my expense-tracker data. Summarize my spending from the last 7 days and highlight anything unusual.">Weekly Review</button>
+          <button class="advisor-starter" type="button" data-advisor-starter="Use my expense-tracker data. Review my spending this month and identify key trends.">Monthly Review</button>
+          <button class="advisor-starter" type="button" data-advisor-starter="Use my expense-tracker data. Forecast my account balances, spending, and savings by month end.">Month Forecast</button>
+          <button class="advisor-starter" type="button" data-advisor-starter="Use my expense-tracker data. Find the easiest ways for me to reduce expenses without affecting my lifestyle too much.">Save Money</button>
+          <button class="advisor-starter" type="button" data-advisor-starter="Use my expense-tracker data. How am I progressing toward my financial goals?">Goal Progress</button>
+          <button class="advisor-starter" type="button" data-advisor-starter="Use my expense-tracker data. Explain the biggest changes in my finances compared to the previous period.">What Changed?</button>
+          <button class="advisor-starter" type="button" data-advisor-starter="Use my expense-tracker data. Give me a prioritized action plan for the next 30 days.">Action Plan</button>
+        </div>
+        <div class="advisor-input-row">
+          <textarea id="advisor-input" class="advisor-input form-control" rows="1" maxlength="10000" placeholder="Ask about cash flow, spending, or goals" aria-label="Advisor message"></textarea>
+          <button id="advisor-send" class="advisor-send-btn btn btn-primary" type="submit" title="Send" aria-label="Send">
+            <i class="bi bi-send-fill" aria-hidden="true"></i>
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div id="advisor-memory-panel" class="advisor-tab-panel advisor-memory-panel d-none" role="tabpanel" aria-labelledby="advisor-memory-tab">
+      <section class="advisor-memory-section" aria-labelledby="advisor-memory-approved-title">
+        <div class="advisor-memory-heading">
+          <div>
+            <div id="advisor-memory-approved-title" class="advisor-memory-title">Advisor Memory</div>
+            <div class="advisor-memory-note">Stable preferences and profile details used by Advisor.</div>
+          </div>
+          <button id="advisor-memory-edit" class="advisor-icon-btn" type="button" title="Edit memory" aria-label="Edit memory">
+            <i class="bi bi-pencil" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <div id="advisor-memory-document" class="advisor-memory-document" aria-live="polite"></div>
+
+        <form id="advisor-memory-form" class="advisor-memory-form d-none">
+          <div class="mb-2">
+            <label class="form-label small fw-bold mb-1" for="advisor-memory-content">Memory Document</label>
+            <textarea id="advisor-memory-content" class="advisor-memory-editor form-control form-control-sm" rows="8" maxlength="3000"></textarea>
+          </div>
+          <div class="advisor-memory-actions">
+            <button id="advisor-memory-save" class="btn btn-sm btn-primary" type="submit">
+              <i class="bi bi-save" aria-hidden="true"></i>
+              Save
+            </button>
+            <button id="advisor-memory-cancel" class="btn btn-sm btn-outline-secondary d-none" type="button">Cancel</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </section>
+</div>

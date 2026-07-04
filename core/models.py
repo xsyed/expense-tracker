@@ -9,6 +9,13 @@ from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+from . import advisor_models
+
+AdvisorConversation = advisor_models.AdvisorConversation
+AdvisorMemory = advisor_models.AdvisorMemory
+AdvisorMessage = advisor_models.AdvisorMessage
+AdvisorRun = advisor_models.AdvisorRun
+
 
 class UserManager(BaseUserManager["User"]):
     def create_user(self, email: str, password: str | None = None, **extra_fields: Any) -> "User":

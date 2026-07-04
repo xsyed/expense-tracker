@@ -1,0 +1,84 @@
+from __future__ import annotations
+
+import re
+
+POLICY_ERROR = "Advisor Memory must be stable personal context, not transaction-derived amounts or activity."
+
+_DERIVED_PHRASES = (
+    "account balance",
+    "budget snapshot",
+    "category spend",
+    "credit card balance",
+    "current available cash",
+    "current balance",
+    "current cash",
+    "recent spend",
+    "recent spending",
+    "spending total",
+    "transaction snapshot",
+    "transaction summary",
+    "transaction-derived",
+    "derived from transaction",
+    "derived from transactions",
+    "inferred from transaction",
+    "inferred from transactions",
+    "from transaction history",
+    "from transactions",
+    "based on transactions",
+    "based on spending",
+    "spending history",
+    "recent purchase",
+    "recent purchases",
+    "last week's",
+    "last week",
+    "last month",
+    "current balance",
+    "credit card balance",
+)
+_PROTOCOL_PHRASES = (
+    "approved internal tools",
+    "developer instruction",
+    "explanatory text outside json",
+    "json tool-call",
+    "json tool call",
+    "no explanatory text",
+    "planner policy",
+    "response-format",
+    "response format",
+    "strict json",
+    "system instruction",
+    "tool-call responses",
+    "tool call responses",
+)
+_RENT_AMOUNT_RE = re.compile(r"\b(?:monthly\s+)?rent\s*(?:is|=|:|amount)?\s*(?:[$]\s*)?\d{3,}", re.IGNORECASE)
+_SALARY_AMOUNT_RE = re.compile(
+    r"\b(?:salary|payroll|paycheque|paycheck|income)\b.{0,40}(?:[$]\s*)?\d{3,}",
+    re.IGNORECASE,
+)
+_BALANCE_RE = re.compile(
+    r"\b(?:current\s+)?(?:account|credit card|cash|emergency fund|bank)?\s*balance\b",
+    re.IGNORECASE,
+)
+_SPEND_RE = re.compile(
+    r"\b(?:category\s+spend|spent\s+(?:last|this)|last\s+(?:week|month).{0,40}(?:spend|spent|purchase))\b",
+    re.IGNORECASE,
+)
+
+
+def advisor_memory_policy_error(*, content: str) -> str:
+    text = _normalize_text(content)
+    blocked_text = (
+        any(phrase in text for phrase in _PROTOCOL_PHRASES)
+        or any(phrase in text for phrase in _DERIVED_PHRASES)
+        or _RENT_AMOUNT_RE.search(text)
+        or _SALARY_AMOUNT_RE.search(text)
+        or _BALANCE_RE.search(text)
+        or _SPEND_RE.search(text)
+    )
+    if blocked_text:
+        return POLICY_ERROR
+    return ""
+
+
+def _normalize_text(value: str) -> str:
+    return " ".join(value.lower().split())
