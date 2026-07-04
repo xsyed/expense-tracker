@@ -3,6 +3,8 @@ Phase 1 acceptance criteria tests.
 Covers all 10 AC items from phases/phase-1-foundation-auth.md
 """
 
+from __future__ import annotations
+
 import datetime
 from unittest.mock import patch
 
@@ -254,6 +256,15 @@ class TemplateRenderTests(TestCase):
         self.assertContains(response, "Protected spending")
         self.assertContains(response, "Tight")
         self.assertContains(response, "Not Feasible")
+
+    def test_home_page_includes_category_spending_table(self):
+        self._force_login_user("category-spending-table@example.com")
+
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="category-spending-table"')
+        self.assertContains(response, "/api/charts/category-spending-table/?months=")
 
 
 class AdvisorPillUiTests(TestCase):

@@ -46,6 +46,7 @@ from core.views_categories import category_delete_view, category_edit_view, cate
 from core.views_category_spend import category_spend_data_view, category_spend_page_view
 from core.views_charts import (
     chart_category_breakdown_view,
+    chart_category_spending_table_view,
     chart_month_over_month_view,
     chart_monthly_totals_view,
     chart_top_categories_view,
@@ -129,6 +130,11 @@ urlpatterns = [
     path("api/charts/category-breakdown/", chart_category_breakdown_view, name="chart_category_breakdown"),
     path("preferences/grid/", update_grid_preferences_view, name="grid_preferences_update"),
     path("api/charts/top-categories/", chart_top_categories_view, name="chart_top_categories"),
+    path(
+        "api/charts/category-spending-table/",
+        chart_category_spending_table_view,
+        name="chart_category_spending_table",
+    ),
     path("api/charts/month-over-month/", chart_month_over_month_view, name="chart_mom"),
     path("csv-mapper/", csv_mapper_view, name="csv_mapper"),
     path("csv-mapper/bulk/", csv_mapper_bulk_view, name="csv_mapper_bulk"),

@@ -3,12 +3,27 @@ from __future__ import annotations
 import datetime
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum
+from django.db.models import QuerySet, Sum
 from django.db.models.functions import TruncMonth
 from django.http import HttpRequest, JsonResponse
 
 from .models import Transaction
 from .views_months import _cutoff_date
+
+
+def _expense_queryset_for_months(request: HttpRequest) -> QuerySet[Transaction]:
+    months_param = request.GET.get("months", "6")
+    queryset = Transaction.objects.filter(
+        expense_month__user=request.user,
+        transaction_type="expense",
+    )
+    if months_param != "all":
+        try:
+            months = int(months_param)
+        except (ValueError, TypeError):
+            months = 6
+        queryset = queryset.filter(date__gte=_cutoff_date(months))
+    return queryset
 
 
 @login_required
@@ -128,6 +143,34 @@ def chart_top_categories_view(request: HttpRequest) -> JsonResponse:
     percentages = [round((t / overall) * 100, 1) if overall > 0 else 0.0 for t in totals]
 
     return JsonResponse({"labels": labels, "totals": totals, "percentages": percentages})
+
+
+@login_required
+def chart_category_spending_table_view(request: HttpRequest) -> JsonResponse:
+    base_qs = _expense_queryset_for_months(request)
+    month_count = base_qs.annotate(month=TruncMonth("date")).values("month").distinct().count()
+    if month_count == 0:
+        return JsonResponse({"rows": [], "total_expenses": 0.0})
+
+    rows = base_qs.values("category__name").annotate(total=Sum("amount")).order_by("-total")
+    total_expenses = round(sum(float(row["total"] or 0) for row in rows), 2)
+
+    table_rows = []
+    for row in rows:
+        total = round(float(row["total"] or 0), 2)
+        if total == 0:
+            continue
+        share = round((total / total_expenses) * 100, 1) if total_expenses > 0 else 0.0
+        table_rows.append(
+            {
+                "category": row["category__name"] or "Unclassified",
+                "total": total,
+                "share": share,
+                "avg_monthly": round(total / month_count, 2),
+            }
+        )
+
+    return JsonResponse({"rows": table_rows, "total_expenses": total_expenses})
 
 
 @login_required

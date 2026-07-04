@@ -112,14 +112,35 @@
     </div>
   </div>
 
-  <!-- Chart 4 (Top Categories) -->
+  <!-- Chart 4 (Top Categories) + Category Spending Table -->
   <div class="row g-3">
-    <div class="col-12">
+    <div class="col-12 col-lg-6">
       <div class="card shadow-sm h-100">
         <div class="card-header fw-semibold">Top Categories</div>
         <div class="card-body">
           <div id="chart4"></div>
           <div id="chart4-empty" class="d-none text-center text-muted py-4"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header fw-semibold">Category Spending</div>
+        <div class="card-body p-0">
+          <div id="category-spending-table-wrap" style="max-height: 360px; overflow-y: auto;">
+            <table class="table table-hover table-sm mb-0" id="category-spending-table">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th>Category</th>
+                  <th class="text-end">Total</th>
+                  <th class="text-end">Share</th>
+                  <th class="text-end">Avg / Month</th>
+                </tr>
+              </thead>
+              <tbody id="category-spending-table-body"></tbody>
+            </table>
+          </div>
+          <div id="category-spending-empty" class="d-none text-center text-muted py-4"></div>
         </div>
       </div>
     </div>
@@ -258,6 +279,50 @@
     chart4.render();
   }
 
+  function formatCurrency(value) {
+    return '$' + Number(value).toFixed(2);
+  }
+
+  function renderCategorySpendingTable(data) {
+    var tableWrap = document.getElementById('category-spending-table-wrap');
+    var emptyEl = document.getElementById('category-spending-empty');
+    var tbody = document.getElementById('category-spending-table-body');
+    if (!tableWrap || !emptyEl || !tbody) return;
+
+    tbody.innerHTML = '';
+    if (!data.rows || data.rows.length === 0) {
+      tableWrap.classList.add('d-none');
+      emptyEl.textContent = 'No categorized or uncategorized expenses found for this period.';
+      emptyEl.classList.remove('d-none');
+      return;
+    }
+
+    data.rows.forEach(function (row) {
+      var tr = document.createElement('tr');
+      var categoryCell = document.createElement('td');
+      var totalCell = document.createElement('td');
+      var shareCell = document.createElement('td');
+      var averageCell = document.createElement('td');
+
+      categoryCell.textContent = row.category;
+      totalCell.textContent = formatCurrency(row.total);
+      shareCell.textContent = Number(row.share).toFixed(1) + '%';
+      averageCell.textContent = formatCurrency(row.avg_monthly);
+
+      totalCell.className = 'text-end fw-semibold';
+      shareCell.className = 'text-end';
+      averageCell.className = 'text-end';
+
+      tr.appendChild(categoryCell);
+      tr.appendChild(totalCell);
+      tr.appendChild(shareCell);
+      tr.appendChild(averageCell);
+      tbody.appendChild(tr);
+    });
+    emptyEl.classList.add('d-none');
+    tableWrap.classList.remove('d-none');
+  }
+
   function refreshAllCharts() {
     var range = currentRange === 'all' ? 'all' : currentRange;
 
@@ -284,6 +349,15 @@
       .then(function (r) { return r.json(); })
       .then(function (data) { initChart4(data); })
       .catch(function () { showEmpty('chart4', 'Failed to load chart data.'); });
+
+    fetch(SCRIPT_PREFIX + '/api/charts/category-spending-table/?months=' + range)
+      .then(function (r) { return r.json(); })
+      .then(function (data) { renderCategorySpendingTable(data); })
+      .catch(function () {
+        renderCategorySpendingTable({ rows: [] });
+        var emptyEl = document.getElementById('category-spending-empty');
+        if (emptyEl) emptyEl.textContent = 'Failed to load category spending data.';
+      });
   }
 
   document.addEventListener('DOMContentLoaded', function () {
