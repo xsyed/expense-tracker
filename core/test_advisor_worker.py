@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 from collections.abc import Callable
+from decimal import Decimal
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
@@ -11,7 +12,16 @@ from django.utils import timezone
 
 from core.advisor_prompting import AdvisorAnswer, ToolOutput
 from core.advisor_worker import cancel_advisor_run, mark_stale_running_runs, process_next_advisor_run
-from core.models import AdvisorConversation, AdvisorMemory, AdvisorMessage, AdvisorRun
+from core.models import (
+    Account,
+    AdvisorConversation,
+    AdvisorMemory,
+    AdvisorMessage,
+    AdvisorRun,
+    Category,
+    ExpenseMonth,
+    Transaction,
+)
 
 User = get_user_model()
 
@@ -167,6 +177,50 @@ class AdvisorWorkerTests(TestCase):
         self.assertTrue(
             any(entry["argument_keys"] == [] and entry["status"] == "completed" for entry in budget_entries)
         )
+
+    @patch("core.advisor_worker.rewrite_advisor_memory", return_value="")
+    @patch("core.advisor_worker.stream_advisor_answer")
+    @patch("core.advisor_worker.plan_advisor_tools")
+    def test_worker_dispatches_category_spending_summary(
+        self,
+        mock_plan: Mock,
+        mock_answer: Mock,
+        _mock_rewrite: Mock,
+    ) -> None:
+        AdvisorMemory.objects.create(user=self.user, content="Prefers concise answers.")
+        account = Account.objects.create(user=self.user, name="Chequing")
+        category = Category.objects.get(user=self.user, name="Grocery")
+        month = ExpenseMonth.objects.create(user=self.user, month=datetime.date(2026, 6, 1), label="June 2026")
+        Transaction.objects.create(
+            expense_month=month,
+            account=account,
+            category=category,
+            description="Market",
+            amount=Decimal("50.00"),
+            date=datetime.date(2026, 6, 3),
+            transaction_type="expense",
+        )
+        self.user_message.content = "Where did I spend most by category in June?"
+        self.user_message.save(update_fields=["content"])
+        run = self._create_run()
+        mock_plan.return_value = [
+            {
+                "name": "get_category_spending_summary",
+                "arguments": {"start_date": "2026-06-01", "end_date": "2026-06-30", "limit": 20},
+            }
+        ]
+        mock_answer.return_value = AdvisorAnswer(content="Direct answer: groceries.", model="answer-model")
+
+        processed = process_next_advisor_run()
+
+        run.refresh_from_db()
+        tool_outputs = mock_answer.call_args.kwargs["tool_outputs"]
+        category_output = tool_outputs[0]["output"]
+        self.assertTrue(processed)
+        self.assertEqual(run.status, AdvisorRun.STATUS_COMPLETED)
+        self.assertEqual(run.tool_trace[0]["name"], "get_category_spending_summary")
+        self.assertEqual(category_output["rows"][0]["category"], "Grocery")
+        self.assertEqual(category_output["rows"][0]["total"], 50.0)
 
     @patch("core.advisor_worker.rewrite_advisor_memory")
     @patch("core.advisor_worker.stream_advisor_answer")

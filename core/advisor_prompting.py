@@ -48,12 +48,16 @@ Use ISO date strings in YYYY-MM-DD format for every date argument.
 When the user asks about stored financial data, budgets, cash flow, recurring obligations, goals, recent spend,
 app data, starter data, existing data, or monthly numbers, choose relevant summary tools instead of saying memory is
 missing.
+For category totals, category shares, category averages, category rankings, where spending was highest, or
+date-range category analysis, prefer get_category_spending_summary over get_recent_spending_brief.
 Do not answer finance-data questions from memory when an internal app-data tool can retrieve the current app fact.
 Do not include explanations outside JSON.
 """
 
 PLANNER_TOOL_SCHEMAS = """Tool argument schemas:
 - get_user_profile_memory: {"limit": integer, optional}
+- get_category_spending_summary: {"start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD",
+  "limit": integer, optional}
 - get_recent_spending_brief: {"preset": "last_7_days"|"this_month"|"previous_month"} or
   {"start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "include_evidence": boolean, optional}
 - get_budget_position: {"month": "YYYY-MM-DD"}
@@ -75,6 +79,7 @@ PLANNER_TOOL_SCHEMAS = """Tool argument schemas:
 APPROVED_TOOL_NAMES = frozenset(
     {
         "get_user_profile_memory",
+        "get_category_spending_summary",
         "get_recent_spending_brief",
         "get_budget_position",
         "get_cash_flow_summary",

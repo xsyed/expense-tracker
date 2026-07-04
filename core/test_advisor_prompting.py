@@ -132,6 +132,8 @@ class AdvisorPromptingTests(TestCase):
         joined_content = "\n".join(message["content"] for message in messages)
 
         self.assertIn('get_budget_position: {"month": "YYYY-MM-DD"}', joined_content)
+        self.assertIn("get_category_spending_summary", joined_content)
+        self.assertIn("category rankings", joined_content)
         self.assertIn("When the user asks about stored financial data", joined_content)
         self.assertIn("Memory Document", joined_content)
         self.assertIn("Prefers concise answers", joined_content)
@@ -224,6 +226,10 @@ class AdvisorPromptingTests(TestCase):
         content = json.dumps(
             {
                 "tool_calls": [
+                    {
+                        "name": "get_category_spending_summary",
+                        "arguments": {"start_date": "2026-06-01", "end_date": "2026-06-30"},
+                    },
                     {"name": "get_budget_position", "arguments": {"month": "2026-06-01"}},
                     {"name": "run_affordability_check", "arguments": {"amount": 1200}},
                 ]
@@ -242,7 +248,7 @@ class AdvisorPromptingTests(TestCase):
 
         self.assertEqual(
             [tool_call["name"] for tool_call in tool_calls],
-            ["get_budget_position", "run_affordability_check"],
+            ["get_category_spending_summary", "get_budget_position", "run_affordability_check"],
         )
 
     @patch("core.advisor_provider.urllib.request.urlopen")

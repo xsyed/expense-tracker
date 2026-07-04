@@ -15,6 +15,7 @@ from .advisor_calculation_tools import (
     run_emergency_fund_calculation,
     run_large_event_plan,
 )
+from .advisor_category_tools import get_category_spending_summary
 from .advisor_memory import get_advisor_memory, save_advisor_memory
 from .advisor_prompting import (
     AdvisorAnswer,
@@ -43,12 +44,13 @@ STALE_RUNNING_AFTER = datetime.timedelta(minutes=15)
 PARTIAL_RESPONSE_WRITE_INTERVAL = datetime.timedelta(milliseconds=500)
 SUMMARY_TOOL_NAMES = frozenset(
     {
-        "get_user_profile_memory",
-        "get_recent_spending_brief",
-        "get_budget_position",
         "get_cash_flow_summary",
-        "get_recurring_obligations",
+        "get_budget_position",
         "get_goal_status",
+        "get_recurring_obligations",
+        "get_user_profile_memory",
+        "get_category_spending_summary",
+        "get_recent_spending_brief",
     }
 )
 CALCULATION_TOOL_NAMES = frozenset(
@@ -301,14 +303,21 @@ def _silently_rewrite_memory(*, client: OpenRouterClient, run: AdvisorRun, tool_
 
 def _execute_summary_tool(*, name: str, arguments: dict[str, JsonValue], user: UserModel) -> dict[str, object]:
     if name == "get_user_profile_memory":
-        return get_user_profile_memory(user)
-    if name == "get_recent_spending_brief":
+        result = get_user_profile_memory(user)
+    elif name == "get_category_spending_summary":
+        result = get_category_spending_summary(
+            user,
+            start_date=_date_arg(arguments, "start_date"),
+            end_date=_date_arg(arguments, "end_date"),
+            limit=_int_arg(arguments, "limit", 20),
+        )
+    elif name == "get_recent_spending_brief":
         preset = _preset_arg(arguments, "preset")
         start_date = _optional_date_arg(arguments, "start_date")
         end_date = _optional_date_arg(arguments, "end_date")
         if preset is None and start_date is None and end_date is None:
             preset = "this_month"
-        return get_recent_spending_brief(
+        result = get_recent_spending_brief(
             user,
             preset=preset,
             start_date=start_date,
@@ -316,23 +325,25 @@ def _execute_summary_tool(*, name: str, arguments: dict[str, JsonValue], user: U
             include_evidence=_bool_arg(arguments, "include_evidence", False),
             evidence_limit=_int_arg(arguments, "evidence_limit", 10),
         )
-    if name == "get_budget_position":
-        return get_budget_position(user, month=_date_arg(arguments, "month", timezone.localdate()))
-    if name == "get_cash_flow_summary":
-        return get_cash_flow_summary(
+    elif name == "get_budget_position":
+        result = get_budget_position(user, month=_date_arg(arguments, "month", timezone.localdate()))
+    elif name == "get_cash_flow_summary":
+        result = get_cash_flow_summary(
             user,
             months=_int_arg(arguments, "months", 6),
             end_month=_optional_date_arg(arguments, "end_month"),
         )
-    if name == "get_recurring_obligations":
-        return get_recurring_obligations(user, limit=_int_arg(arguments, "limit", 20))
-    if name == "get_goal_status":
-        return get_goal_status(
+    elif name == "get_recurring_obligations":
+        result = get_recurring_obligations(user, limit=_int_arg(arguments, "limit", 20))
+    elif name == "get_goal_status":
+        result = get_goal_status(
             user,
             goal_id=_optional_int_arg(arguments, "goal_id"),
             today=_optional_date_arg(arguments, "today"),
         )
-    raise ValueError(f"Unsupported advisor summary tool: {name}")
+    else:
+        raise ValueError(f"Unsupported advisor summary tool: {name}")
+    return result
 
 
 def _execute_calculation_tool(*, name: str, arguments: dict[str, JsonValue]) -> dict[str, object]:

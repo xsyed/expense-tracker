@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
+from core.advisor_category_tools import get_category_spending_summary
 from core.advisor_tools import (
     get_budget_position,
     get_cash_flow_summary,
@@ -116,6 +117,62 @@ class AdvisorToolsTests(TestCase):
         self.assertEqual(top_categories[0], {"category": "Grocery", "amount": 125.4})
         self.assertEqual(len(evidence), 2)
         self.assertEqual(evidence[0]["merchant"], "Supermarket")
+
+    def test_category_spending_summary_aggregates_expenses_by_category(self) -> None:
+        grocery = self._category("Grocery", expense_type="variable")
+        auto = self._category("Auto", expense_type="variable")
+        dining = self._category("Dining", expense_type="variable")
+        income = self._category("Pay", category_type="income")
+        other_grocery = self._category("Grocery", user=self.other_user, expense_type="variable")
+        june = self._month(datetime.date(2026, 6, 1))
+        july = self._month(datetime.date(2026, 7, 1))
+        other_june = self._month(datetime.date(2026, 6, 1), user=self.other_user)
+        self._transaction(june, "Supermarket", "300.00", datetime.date(2026, 6, 2), grocery)
+        self._transaction(july, "Cash Withdrawal", "200.00", datetime.date(2026, 7, 2), None)
+        self._transaction(june, "Fuel", "100.00", datetime.date(2026, 6, 3), auto)
+        self._transaction(june, "Cafe", "100.00", datetime.date(2026, 6, 4), dining)
+        self._transaction(june, "Old Grocery", "999.00", datetime.date(2026, 5, 30), grocery)
+        self._transaction(june, "Payroll", "5000.00", datetime.date(2026, 6, 1), income, transaction_type="income")
+        self._transaction(june, "Income Category Expense", "75.00", datetime.date(2026, 6, 5), income)
+        self._transaction(
+            other_june,
+            "Other Market",
+            "888.00",
+            datetime.date(2026, 6, 2),
+            other_grocery,
+            self.other_account,
+        )
+
+        payload = get_category_spending_summary(
+            self.user,
+            start_date=datetime.date(2026, 6, 1),
+            end_date=datetime.date(2026, 7, 31),
+            limit=3,
+        )
+
+        rows = _payload_list(payload, "rows")
+        self.assertEqual(payload["date_range"], {"start": "2026-06-01", "end": "2026-07-31"})
+        self.assertEqual(payload["total_expenses"], 700.0)
+        self.assertEqual(payload["month_count"], 2)
+        self.assertEqual([row["category"] for row in rows], ["Grocery", "Uncategorized", "Auto"])
+        self.assertEqual(rows[0], {"category": "Grocery", "total": 300.0, "share": 42.9, "avg_monthly": 150.0})
+        self.assertEqual(rows[1], {"category": "Uncategorized", "total": 200.0, "share": 28.6, "avg_monthly": 100.0})
+        self.assertTrue(_payload_dict(payload, "missing_data")["accounts_lack_current_balances"])
+
+    def test_category_spending_summary_caps_limit(self) -> None:
+        month = self._month(datetime.date(2026, 6, 1))
+        for index in range(25):
+            category = self._category(f"Category {index:02d}", expense_type="variable")
+            self._transaction(month, f"Merchant {index}", "1.00", datetime.date(2026, 6, 1), category)
+
+        payload = get_category_spending_summary(
+            self.user,
+            start_date=datetime.date(2026, 6, 1),
+            end_date=datetime.date(2026, 6, 30),
+            limit=99,
+        )
+
+        self.assertEqual(len(_payload_list(payload, "rows")), 20)
 
     def test_budget_position_includes_month_totals_categories_and_group_rollups(self) -> None:
         needs = CategoryGroup.objects.create(user=self.user, name="Needs")
@@ -278,7 +335,7 @@ class AdvisorToolsTests(TestCase):
         description: str,
         amount: str,
         date: datetime.date,
-        category: Category,
+        category: Category | None,
         account: Account | None = None,
         *,
         transaction_type: str = "expense",
