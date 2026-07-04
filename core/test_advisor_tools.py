@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 from typing import ClassVar, cast
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -161,7 +162,10 @@ class AdvisorToolsTests(TestCase):
         self.assertEqual(payload["average_net_cash_flow"], 1300.0)
         self.assertEqual(payload["trend"], "improving")
 
-    def test_recurring_obligations_use_existing_detection_with_estimates_and_confidence(self) -> None:
+    @patch("core.advisor_tools.timezone.localdate", return_value=datetime.date(2026, 3, 15))
+    def test_recurring_obligations_use_existing_detection_with_estimates_and_confidence(
+        self, _mock_localdate: Mock
+    ) -> None:
         subscriptions = self._category("Subscriptions", expense_type="fixed")
         for month_start in [datetime.date(2026, 1, 1), datetime.date(2026, 2, 1), datetime.date(2026, 3, 1)]:
             month = self._month(month_start)
@@ -176,6 +180,18 @@ class AdvisorToolsTests(TestCase):
         self.assertEqual(items[0]["annual_estimate"], 191.88)
         self.assertEqual(items[0]["confidence"], "medium")
         self.assertEqual(summary["estimated_monthly_total"], 15.99)
+
+    @patch("core.advisor_tools.timezone.localdate", return_value=datetime.date(2026, 6, 15))
+    def test_recurring_obligations_exclude_stale_patterns_from_totals(self, _mock_localdate: Mock) -> None:
+        subscriptions = self._category("Subscriptions", expense_type="fixed")
+        for month_start in [datetime.date(2026, 1, 1), datetime.date(2026, 2, 1), datetime.date(2026, 3, 1)]:
+            month = self._month(month_start)
+            self._transaction(month, "Netflix Subscription", "15.99", month_start, subscriptions)
+
+        payload = get_recurring_obligations(self.user)
+
+        self.assertEqual(payload["items"], [])
+        self.assertEqual(_payload_dict(payload, "summary")["estimated_monthly_total"], 0.0)
 
     def test_goal_status_covers_all_goal_types_selected_goal_and_user_isolation(self) -> None:
         savings_goal = Goal.objects.create(

@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.utils import timezone
 
 from .category_group_rollups import build_expense_group_rollups
 from .goal_progress import debt_payment_transactions
@@ -433,7 +434,7 @@ def recurring_data_view(request: HttpRequest) -> JsonResponse:
         ).values_list("description", "amount", "date", "category__name")
     )
     transactions = [(desc, amount, date) for desc, amount, date, _cat in transactions_with_cats]
-    items = detect_recurring(transactions)
+    items = detect_recurring(transactions, as_of=timezone.localdate())
     total_monthly = sum(float(str(i["annual_estimate"])) / 12 for i in items)
     total_annual = sum(float(str(i["annual_estimate"])) for i in items)
     category_breakdown = build_category_breakdown(transactions_with_cats, items)

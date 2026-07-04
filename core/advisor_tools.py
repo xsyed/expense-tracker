@@ -361,7 +361,10 @@ def get_recurring_obligations(user: UserModel, *, limit: int = _RECURRING_CAP) -
             "category__name",
         )
     )
-    recurring = detect_recurring([(desc, amount, date) for desc, amount, date, _category in transactions_with_cats])
+    recurring = detect_recurring(
+        [(desc, amount, date) for desc, amount, date, _category in transactions_with_cats],
+        as_of=timezone.localdate(),
+    )
     items: list[RecurringItem] = []
     for item in recurring[: min(limit, _RECURRING_CAP)]:
         annual = Decimal(str(item["annual_estimate"]))
