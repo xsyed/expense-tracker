@@ -30,3 +30,14 @@ class AdvisorDeploymentConfigTests(SimpleTestCase):
         advisor_js = (PROJECT_ROOT / "static/js/advisor_pill.js").read_text(encoding="utf-8")
 
         self.assertIn("new window.EventSource(SCRIPT_PREFIX + `/api/advisor/runs/${run.id}/events/`", advisor_js)
+
+    def test_deploy_updates_host_compose_before_compose_up(self) -> None:
+        deploy_script = (PROJECT_ROOT / "deploy/deploy.sh").read_text(encoding="utf-8")
+        workflow = (PROJECT_ROOT / ".github/workflows/deploy.yml").read_text(encoding="utf-8")
+
+        expected_copy = 'docker cp "$RELEASE_CONTAINER":/app/docker-compose.prod.yml ./docker-compose.prod.yml'
+        compose_up = "docker compose -f docker-compose.prod.yml up -d"
+
+        self.assertIn('docker create --name "$RELEASE_CONTAINER" "$IMAGE" >/dev/null', deploy_script)
+        self.assertLess(deploy_script.index(expected_copy), deploy_script.index(compose_up))
+        self.assertLess(workflow.index(expected_copy), workflow.index(compose_up))

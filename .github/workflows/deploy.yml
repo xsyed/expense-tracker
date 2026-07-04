@@ -45,14 +45,25 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -e
+            IMAGE=ghcr.io/xsyed/expense-tracker:latest
+            RELEASE_CONTAINER=expense-tracker-release
+            cleanup_release_container() {
+              docker rm -f "$RELEASE_CONTAINER" >/dev/null 2>&1 || true
+            }
+            trap cleanup_release_container EXIT
+
             cd /home/sami/expense-tracker
             [ -f ./deploy/backup.sh ] && ./deploy/backup.sh "pre-deploy" || echo "Skipping pre-deploy backup (backup.sh not found)"
-            docker pull ghcr.io/xsyed/expense-tracker:latest
+            docker pull "$IMAGE"
+            cleanup_release_container
+            docker create --name "$RELEASE_CONTAINER" "$IMAGE" >/dev/null
+            docker cp "$RELEASE_CONTAINER":/app/docker-compose.prod.yml ./docker-compose.prod.yml
+            rm -rf ./deploy
+            docker cp "$RELEASE_CONTAINER":/app/deploy ./deploy
+            chmod +x ./deploy/*.sh
             docker compose -f docker-compose.prod.yml up -d
             sleep 15
             curl -sf http://localhost:8000/health/ || (echo "Health check failed!" && exit 1)
             docker inspect --format='{{.State.Running}}' expense-tracker-advisor-worker | grep -q true || (echo "Advisor worker is not running!" && exit 1)
-            rm -rf ./deploy
-            docker cp expense-tracker-web:/app/deploy ./deploy
-            chmod +x ./deploy/*.sh
             mkdir -p backups

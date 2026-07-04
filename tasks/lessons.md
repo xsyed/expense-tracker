@@ -7,6 +7,24 @@ Format: **What went wrong → Root cause → Rule to enforce**
 
 <!-- Add new lessons below this line. Most recent first. -->
 
+## VPS app directory is runtime state, not source checkout
+
+**What went wrong**: I assumed CI deploy could rely on the VPS `docker-compose.prod.yml` staying current.
+**Root cause**: `/home/sami/expense-tracker` contains runtime files only, not a git checkout, so host config drifts unless copied from the release image.
+**Rule**: Before `docker compose up` on VPS, stage host-side files such as `docker-compose.prod.yml` and `deploy/` from the freshly pulled image.
+
+## Answer deployment model questions before changing deploy code
+
+**What went wrong**: User asked why VPS did not show source code, and I patched deploy automation first.
+**Root cause**: Treated an operational clarification as an implementation request.
+**Rule**: When user asks "why" about deployment/runtime layout, explain the current model first; only edit deploy code after explicit request or clear task ownership.
+
+## GitHub Actions deploy owns master push rollout
+
+**What went wrong**: I described push/merge as a separate manual prerequisite instead of the automatic deploy trigger.
+**Root cause**: Mixed local release readiness with the repo's CI/CD behavior.
+**Rule**: For this app, push to `master` triggers quality gate, image build, and VPS deploy. Manual VPS steps are only env/config/nginx/drift checks unless CI fails.
+
 ## CSV import behavior needs code and data proof before diagnosis
 
 **What went wrong**: User had to explicitly demand no assumptions on CSV auto-mapping behavior.
