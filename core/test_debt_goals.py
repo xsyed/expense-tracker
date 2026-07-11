@@ -9,7 +9,7 @@ from django.utils import timezone
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from core.forms import GoalForm
-from core.goal_progress import debt_goal_progress
+from core.goal_progress import debt_goal_progress, savings_goal_progress
 from core.models import Category, ExpenseMonth, Goal, GoalContribution, Transaction
 
 User = get_user_model()
@@ -101,6 +101,37 @@ class DebtGoalTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn("expense category", form.errors["category"][0])
 
+    def test_savings_goal_with_income_category_is_rejected(self) -> None:
+        form = GoalForm(
+            data={
+                "name": "Rainy Fund",
+                "goal_type": "savings",
+                "target_amount": "1000.00",
+                "category": str(self.income_category.pk),
+            },
+            user=self.user,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("expense category", form.errors["category"][0])
+
+    def test_savings_progress_tracks_matching_expenses_and_manual_contributions(self) -> None:
+        goal = Goal.objects.create(
+            user=self.user,
+            name="Rainy Fund",
+            goal_type="savings",
+            target_amount=Decimal("1000.00"),
+            category=self.expense_category,
+        )
+        self._set_goal_created_at(goal, datetime.date(2026, 1, 15))
+        GoalContribution.objects.create(goal=goal, amount=Decimal("25.00"), date=datetime.date(2026, 1, 20))
+        self._create_transaction("Too early", "50.00", datetime.date(2026, 1, 14), self.expense_category)
+        self._create_transaction("Emergency transfer", "75.00", datetime.date(2026, 1, 15), self.expense_category)
+        self._create_transaction("Later transfer", "100.00", datetime.date(2026, 2, 1), self.expense_category)
+        self._create_transaction("Other category", "200.00", datetime.date(2026, 2, 1), self.other_expense_category)
+
+        self.assertEqual(savings_goal_progress(goal), Decimal("200"))
+
     def test_debt_progress_tracks_only_matching_expenses_on_or_after_creation_date(self) -> None:
         goal = self._create_debt_goal()
         GoalContribution.objects.create(goal=goal, amount=Decimal("999.00"), date=datetime.date(2026, 1, 20))
@@ -139,6 +170,33 @@ class DebtGoalTests(TestCase):
         self.assertEqual(data["timeline"]["series"][0]["name"], "Line of Credit")
         self.assertEqual(data["timeline"]["series"][0]["data"], [250.0])
 
+    def test_goals_insights_include_auto_tracked_savings_progress_and_timeline(self) -> None:
+        today = datetime.date.today()
+        month = ExpenseMonth.objects.create(user=self.user, label="Current", month=today.replace(day=1))
+        goal = Goal.objects.create(
+            user=self.user,
+            name="Rainy Fund",
+            goal_type="savings",
+            target_amount=Decimal("1000.00"),
+            category=self.expense_category,
+            deadline=today + datetime.timedelta(days=60),
+        )
+        self._set_goal_created_at(goal, today - datetime.timedelta(days=1))
+        GoalContribution.objects.create(goal=goal, amount=Decimal("25.00"), date=today)
+        self._create_transaction("Emergency transfer", "250.00", today, self.expense_category, month)
+
+        response = self.client.get("/api/insights/goals-data/")
+        data = response.json()
+        savings_goal = next(g for g in data["goals"] if g["id"] == goal.pk)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(savings_goal["progress_amount"], 275.0)
+        self.assertEqual(savings_goal["pct_complete"], 27)
+        self.assertEqual(savings_goal["deadline"], (today + datetime.timedelta(days=60)).isoformat())
+        self.assertEqual(savings_goal["category_name"], "Loan Payment")
+        self.assertEqual(data["timeline"]["series"][0]["name"], "Rainy Fund")
+        self.assertEqual(data["timeline"]["series"][0]["data"], [275.0])
+
     def test_projection_endpoint_supports_savings_and_debt_but_not_spending(self) -> None:
         debt_goal = self._create_debt_goal()
         self._create_transaction("Payment", "125.00", datetime.date(2026, 1, 15), self.expense_category)
@@ -147,8 +205,16 @@ class DebtGoalTests(TestCase):
             name="Emergency Fund",
             goal_type="savings",
             target_amount=Decimal("500.00"),
+            category=self.other_expense_category,
         )
         GoalContribution.objects.create(goal=savings_goal, amount=Decimal("50.00"), date=datetime.date(2026, 1, 20))
+        self._set_goal_created_at(savings_goal, datetime.date(2026, 1, 15))
+        self._create_transaction(
+            "Emergency transfer",
+            "75.00",
+            datetime.date(2026, 1, 21),
+            self.other_expense_category,
+        )
         spending_goal = Goal.objects.create(
             user=self.user,
             name="Dining Limit",
@@ -164,7 +230,7 @@ class DebtGoalTests(TestCase):
         self.assertEqual(debt_response.status_code, 200)
         self.assertEqual(debt_response.json()["historical"], [{"month": "2026-01", "cumulative": 125.0}])
         self.assertEqual(savings_response.status_code, 200)
-        self.assertEqual(savings_response.json()["historical"], [{"month": "2026-01", "cumulative": 50.0}])
+        self.assertEqual(savings_response.json()["historical"], [{"month": "2026-01", "cumulative": 125.0}])
         self.assertEqual(spending_response.status_code, 404)
 
     def _create_debt_goal(self) -> Goal:

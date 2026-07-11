@@ -14,8 +14,20 @@ def _sum_amount(transactions: QuerySet[Transaction]) -> Decimal:
     return transactions.aggregate(total=Sum("amount"))["total"] or Decimal(0)
 
 
+def savings_transfer_transactions(goal: Goal) -> QuerySet[Transaction]:
+    if goal.category_id is None:
+        return Transaction.objects.none()
+    return Transaction.objects.filter(
+        expense_month__user=goal.user,
+        category_id=goal.category_id,
+        transaction_type="expense",
+        date__gte=timezone.localtime(goal.created_at).date(),
+    )
+
+
 def savings_goal_progress(goal: Goal) -> Decimal:
-    return goal.contributions.aggregate(total=Sum("amount"))["total"] or Decimal(0)
+    contribution_total = goal.contributions.aggregate(total=Sum("amount"))["total"] or Decimal(0)
+    return contribution_total + _sum_amount(savings_transfer_transactions(goal))
 
 
 def spending_goal_progress(goal: Goal, month_start: datetime.date) -> Decimal:

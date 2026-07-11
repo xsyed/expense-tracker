@@ -328,8 +328,8 @@ class GoalForm(forms.ModelForm[Goal]):
         category = cleaned_data.get("category")
         if goal_type in {"spending", "debt"} and not category:
             self.add_error("category", "A category is required for spending and debt goals.")
-        if goal_type in {"spending", "debt"} and category is not None and category.category_type != "expense":
-            self.add_error("category", "Spending and debt goals must use an expense category.")
+        if category is not None and category.category_type != "expense":
+            self.add_error("category", "Goal categories must use an expense category.")
         return cleaned_data
 
 

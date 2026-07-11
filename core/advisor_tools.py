@@ -9,7 +9,12 @@ from django.db.models import QuerySet, Sum
 from django.utils import timezone
 
 from .category_group_rollups import build_expense_group_rollups
-from .goal_progress import debt_goal_progress, savings_goal_progress, spending_goal_progress
+from .goal_progress import (
+    debt_goal_progress,
+    savings_goal_progress,
+    savings_transfer_transactions,
+    spending_goal_progress,
+)
 from .models import AdvisorMemory, CategoryBudget, Goal, Transaction
 from .models import User as UserModel
 from .recurring_utils import build_category_breakdown, detect_recurring
@@ -404,7 +409,10 @@ def _goal_progress(goal: Goal, today: datetime.date) -> Decimal:
 
 def _goal_activity_start(goal: Goal) -> datetime.date:
     if goal.goal_type == "savings":
-        first = goal.contributions.order_by("date").values_list("date", flat=True).first()
+        first_contribution = goal.contributions.order_by("date").values_list("date", flat=True).first()
+        first_transaction = savings_transfer_transactions(goal).order_by("date").values_list("date", flat=True).first()
+        savings_dates = [date for date in [first_contribution, first_transaction] if date is not None]
+        first = min(savings_dates) if savings_dates else None
     elif goal.goal_type == "debt" and goal.category_id is not None:
         first = (
             Transaction.objects.filter(

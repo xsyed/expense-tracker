@@ -12,7 +12,7 @@ from django.shortcuts import render
 from django.utils import timezone
 
 from .category_group_rollups import build_expense_group_rollups
-from .goal_progress import debt_payment_transactions
+from .goal_progress import debt_payment_transactions, savings_transfer_transactions
 from .models import CategoryBudget, ExpenseMonth, Goal, Transaction
 from .models import User as UserModel
 from .recurring_utils import build_category_breakdown, detect_recurring
@@ -210,9 +210,13 @@ def goals_data_view(request: HttpRequest) -> JsonResponse:
     for goal in goals:
         contributions = list(goal.contributions.all())
         if goal.goal_type == "savings":
-            progress = sum((c.amount for c in contributions), Decimal(0))
-            activity_dates = [c.date for c in contributions]
-            timeline_entries.append((goal.name, [(c.date, c.amount) for c in contributions]))
+            savings_transactions = list(savings_transfer_transactions(goal).order_by("date"))
+            contribution_entries = [(c.date, c.amount) for c in contributions]
+            transaction_entries = [(t.date, t.amount) for t in savings_transactions]
+            entries = contribution_entries + transaction_entries
+            progress = sum((amount for _, amount in entries), Decimal(0))
+            activity_dates = [entry_date for entry_date, _ in entries]
+            timeline_entries.append((goal.name, entries))
         elif goal.goal_type == "debt":
             debt_transactions = list(debt_payment_transactions(goal).order_by("date"))
             progress = sum((t.amount for t in debt_transactions), Decimal(0))
@@ -310,11 +314,11 @@ def goal_projection_data_view(request: HttpRequest, pk: int) -> JsonResponse:
     if goal is None:
         return JsonResponse({"error": "Goal not found"}, status=404)
 
-    entries = (
-        [(c.date, c.amount) for c in goal.contributions.order_by("date")]
-        if goal.goal_type == "savings"
-        else [(t.date, t.amount) for t in debt_payment_transactions(goal).order_by("date")]
-    )
+    if goal.goal_type == "savings":
+        entries = [(c.date, c.amount) for c in goal.contributions.order_by("date")]
+        entries += [(t.date, t.amount) for t in savings_transfer_transactions(goal).order_by("date")]
+    else:
+        entries = [(t.date, t.amount) for t in debt_payment_transactions(goal).order_by("date")]
     target = float(goal.target_amount)
 
     # Build monthly cumulative
