@@ -21,7 +21,6 @@ def savings_transfer_transactions(goal: Goal) -> QuerySet[Transaction]:
         expense_month__user=goal.user,
         category_id=goal.category_id,
         transaction_type="expense",
-        date__gte=timezone.localtime(goal.created_at).date(),
     )
 
 

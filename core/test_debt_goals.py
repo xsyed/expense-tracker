@@ -115,7 +115,7 @@ class DebtGoalTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn("expense category", form.errors["category"][0])
 
-    def test_savings_progress_tracks_matching_expenses_and_manual_contributions(self) -> None:
+    def test_savings_progress_tracks_all_matching_expenses_and_manual_contributions(self) -> None:
         goal = Goal.objects.create(
             user=self.user,
             name="Rainy Fund",
@@ -123,14 +123,13 @@ class DebtGoalTests(TestCase):
             target_amount=Decimal("1000.00"),
             category=self.expense_category,
         )
-        self._set_goal_created_at(goal, datetime.date(2026, 1, 15))
         GoalContribution.objects.create(goal=goal, amount=Decimal("25.00"), date=datetime.date(2026, 1, 20))
-        self._create_transaction("Too early", "50.00", datetime.date(2026, 1, 14), self.expense_category)
+        self._create_transaction("Earlier transfer", "50.00", datetime.date(2026, 1, 14), self.expense_category)
         self._create_transaction("Emergency transfer", "75.00", datetime.date(2026, 1, 15), self.expense_category)
         self._create_transaction("Later transfer", "100.00", datetime.date(2026, 2, 1), self.expense_category)
         self._create_transaction("Other category", "200.00", datetime.date(2026, 2, 1), self.other_expense_category)
 
-        self.assertEqual(savings_goal_progress(goal), Decimal("200"))
+        self.assertEqual(savings_goal_progress(goal), Decimal("250"))
 
     def test_savings_progress_updates_each_goal_sharing_category_and_caps_at_target(self) -> None:
         small_goal = Goal.objects.create(
@@ -155,6 +154,40 @@ class DebtGoalTests(TestCase):
 
         self.assertEqual(savings_goal_progress(small_goal), Decimal("150.00"))
         self.assertEqual(savings_goal_progress(large_goal), Decimal("250.00"))
+
+    def test_insights_updates_each_goal_for_a_recategorized_historical_transaction(self) -> None:
+        first_goal = Goal.objects.create(
+            user=self.user,
+            name="First Fund",
+            goal_type="savings",
+            target_amount=Decimal("500.00"),
+            category=self.expense_category,
+        )
+        second_goal = Goal.objects.create(
+            user=self.user,
+            name="Second Fund",
+            goal_type="savings",
+            target_amount=Decimal("500.00"),
+            category=self.expense_category,
+        )
+        transaction = self._create_transaction(
+            "Previously categorized dining",
+            "100.00",
+            datetime.date(2026, 1, 14),
+            self.other_expense_category,
+        )
+
+        transaction.category = self.expense_category
+        transaction.save(update_fields=["category"])
+
+        self.assertEqual(savings_goal_progress(first_goal), Decimal("100.00"))
+        self.assertEqual(savings_goal_progress(second_goal), Decimal("100.00"))
+        response = self.client.get("/api/insights/goals-data/")
+        progress_by_id = {goal["id"]: goal["progress_amount"] for goal in response.json()["goals"]}
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(progress_by_id[first_goal.pk], 100.0)
+        self.assertEqual(progress_by_id[second_goal.pk], 100.0)
 
     def test_debt_progress_tracks_only_matching_expenses_on_or_after_creation_date(self) -> None:
         goal = self._create_debt_goal()
