@@ -6,13 +6,13 @@ from decimal import Decimal
 from typing import Any, cast
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum
+from django.db.models import F, Sum
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 
 from .category_group_rollups import build_expense_group_rollups
-from .goal_progress import debt_payment_transactions, savings_transfer_transactions
+from .goal_progress import debt_payment_transactions, savings_goal_progress_entries
 from .models import CategoryBudget, ExpenseMonth, Goal, Transaction
 from .models import User as UserModel
 from .recurring_utils import build_category_breakdown, detect_recurring
@@ -190,7 +190,12 @@ def goals_data_view(request: HttpRequest) -> JsonResponse:
     user = request.user
     today = datetime.date.today()
     current_month_start = today.replace(day=1)
-    goals = list(Goal.objects.filter(user=user).prefetch_related("contributions").select_related("category"))
+    goals = list(
+        Goal.objects.filter(user=user)
+        .prefetch_related("contributions")
+        .select_related("category")
+        .order_by(F("deadline").asc(nulls_last=True), "name", "pk")
+    )
     spending_category_ids = [g.category_id for g in goals if g.goal_type == "spending" and g.category_id]
     spending_map: dict[int, Decimal] = {}
     if spending_category_ids:
@@ -208,12 +213,8 @@ def goals_data_view(request: HttpRequest) -> JsonResponse:
     goal_list = []
     timeline_entries: list[tuple[str, list[tuple[datetime.date, Decimal]]]] = []
     for goal in goals:
-        contributions = list(goal.contributions.all())
         if goal.goal_type == "savings":
-            savings_transactions = list(savings_transfer_transactions(goal).order_by("date"))
-            contribution_entries = [(c.date, c.amount) for c in contributions]
-            transaction_entries = [(t.date, t.amount) for t in savings_transactions]
-            entries = contribution_entries + transaction_entries
+            entries = savings_goal_progress_entries(goal)
             progress = sum((amount for _, amount in entries), Decimal(0))
             activity_dates = [entry_date for entry_date, _ in entries]
             timeline_entries.append((goal.name, entries))
@@ -315,8 +316,7 @@ def goal_projection_data_view(request: HttpRequest, pk: int) -> JsonResponse:
         return JsonResponse({"error": "Goal not found"}, status=404)
 
     if goal.goal_type == "savings":
-        entries = [(c.date, c.amount) for c in goal.contributions.order_by("date")]
-        entries += [(t.date, t.amount) for t in savings_transfer_transactions(goal).order_by("date")]
+        entries = savings_goal_progress_entries(goal)
     else:
         entries = [(t.date, t.amount) for t in debt_payment_transactions(goal).order_by("date")]
     target = float(goal.target_amount)

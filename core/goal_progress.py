@@ -25,9 +25,29 @@ def savings_transfer_transactions(goal: Goal) -> QuerySet[Transaction]:
     )
 
 
+def _capped_goal_entries(
+    entries: list[tuple[datetime.date, Decimal]],
+    target_amount: Decimal,
+) -> list[tuple[datetime.date, Decimal]]:
+    remaining = target_amount
+    capped_entries: list[tuple[datetime.date, Decimal]] = []
+    for entry_date, amount in sorted(entries, key=lambda entry: entry[0]):
+        if remaining <= 0:
+            break
+        capped_amount = min(amount, remaining)
+        capped_entries.append((entry_date, capped_amount))
+        remaining -= capped_amount
+    return capped_entries
+
+
+def savings_goal_progress_entries(goal: Goal) -> list[tuple[datetime.date, Decimal]]:
+    contribution_entries = [(c.date, c.amount) for c in goal.contributions.order_by("date")]
+    transaction_entries = [(t.date, t.amount) for t in savings_transfer_transactions(goal).order_by("date")]
+    return _capped_goal_entries(contribution_entries + transaction_entries, goal.target_amount)
+
+
 def savings_goal_progress(goal: Goal) -> Decimal:
-    contribution_total = goal.contributions.aggregate(total=Sum("amount"))["total"] or Decimal(0)
-    return contribution_total + _sum_amount(savings_transfer_transactions(goal))
+    return sum((amount for _, amount in savings_goal_progress_entries(goal)), Decimal(0))
 
 
 def spending_goal_progress(goal: Goal, month_start: datetime.date) -> Decimal:

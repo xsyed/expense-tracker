@@ -132,6 +132,30 @@ class DebtGoalTests(TestCase):
 
         self.assertEqual(savings_goal_progress(goal), Decimal("200"))
 
+    def test_savings_progress_updates_each_goal_sharing_category_and_caps_at_target(self) -> None:
+        small_goal = Goal.objects.create(
+            user=self.user,
+            name="Small Fund",
+            goal_type="savings",
+            target_amount=Decimal("150.00"),
+            category=self.expense_category,
+        )
+        large_goal = Goal.objects.create(
+            user=self.user,
+            name="Large Fund",
+            goal_type="savings",
+            target_amount=Decimal("250.00"),
+            category=self.expense_category,
+        )
+        self._set_goal_created_at(small_goal, datetime.date(2026, 1, 15))
+        self._set_goal_created_at(large_goal, datetime.date(2026, 1, 15))
+        self._create_transaction("First transfer", "100.00", datetime.date(2026, 1, 15), self.expense_category)
+        self._create_transaction("Second transfer", "100.00", datetime.date(2026, 2, 1), self.expense_category)
+        self._create_transaction("Third transfer", "100.00", datetime.date(2026, 2, 2), self.expense_category)
+
+        self.assertEqual(savings_goal_progress(small_goal), Decimal("150.00"))
+        self.assertEqual(savings_goal_progress(large_goal), Decimal("250.00"))
+
     def test_debt_progress_tracks_only_matching_expenses_on_or_after_creation_date(self) -> None:
         goal = self._create_debt_goal()
         GoalContribution.objects.create(goal=goal, amount=Decimal("999.00"), date=datetime.date(2026, 1, 20))
@@ -196,6 +220,61 @@ class DebtGoalTests(TestCase):
         self.assertEqual(savings_goal["category_name"], "Loan Payment")
         self.assertEqual(data["timeline"]["series"][0]["name"], "Rainy Fund")
         self.assertEqual(data["timeline"]["series"][0]["data"], [275.0])
+
+    def test_goals_insights_caps_completed_savings_progress_and_timeline(self) -> None:
+        today = datetime.date.today()
+        month = ExpenseMonth.objects.create(user=self.user, label="Current", month=today.replace(day=1))
+        goal = Goal.objects.create(
+            user=self.user,
+            name="Reached Fund",
+            goal_type="savings",
+            target_amount=Decimal("200.00"),
+            category=self.expense_category,
+            deadline=today + datetime.timedelta(days=60),
+        )
+        self._set_goal_created_at(goal, today - datetime.timedelta(days=1))
+        GoalContribution.objects.create(goal=goal, amount=Decimal("25.00"), date=today)
+        self._create_transaction("Emergency transfer", "250.00", today, self.expense_category, month)
+
+        response = self.client.get("/api/insights/goals-data/")
+        data = response.json()
+        savings_goal = next(g for g in data["goals"] if g["id"] == goal.pk)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(savings_goal["progress_amount"], 200.0)
+        self.assertEqual(savings_goal["pct_complete"], 100)
+        self.assertEqual(savings_goal["health"], "completed")
+        self.assertEqual(data["timeline"]["series"][0]["name"], "Reached Fund")
+        self.assertEqual(data["timeline"]["series"][0]["data"], [200.0])
+
+    def test_goals_insights_orders_goals_by_nearest_deadline_with_undated_last(self) -> None:
+        today = datetime.date.today()
+        Goal.objects.create(
+            user=self.user,
+            name="Zulu Later",
+            goal_type="savings",
+            target_amount=Decimal("1000.00"),
+            deadline=today + datetime.timedelta(days=90),
+        )
+        Goal.objects.create(
+            user=self.user,
+            name="Alpha No Deadline",
+            goal_type="savings",
+            target_amount=Decimal("1000.00"),
+        )
+        Goal.objects.create(
+            user=self.user,
+            name="Middle Soon",
+            goal_type="savings",
+            target_amount=Decimal("1000.00"),
+            deadline=today + datetime.timedelta(days=30),
+        )
+
+        response = self.client.get("/api/insights/goals-data/")
+        data = response.json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([goal["name"] for goal in data["goals"]], ["Middle Soon", "Zulu Later", "Alpha No Deadline"])
 
     def test_projection_endpoint_supports_savings_and_debt_but_not_spending(self) -> None:
         debt_goal = self._create_debt_goal()
