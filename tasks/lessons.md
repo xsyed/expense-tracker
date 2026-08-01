@@ -7,6 +7,12 @@ Format: **What went wrong → Root cause → Rule to enforce**
 
 <!-- Add new lessons below this line. Most recent first. -->
 
+## Tooltip text should not add redundant labels
+
+**What went wrong**: Added “Deadline:” before the hover date.
+**Root cause**: Expanded the requested display instead of matching its exact wording.
+**Rule**: For a requested tooltip label, show only the requested value unless extra context is explicitly asked for.
+
 ## VPS app directory is runtime state, not source checkout
 
 **What went wrong**: I assumed CI deploy could rely on the VPS `docker-compose.prod.yml` staying current.

@@ -908,6 +908,12 @@
     return lines.join('<br>');
   }
 
+  function formatGoalDeadline(deadline) {
+    const parts = deadline.split('-');
+    return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
+      .toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
   function renderGoalCards(goals) {
     const container = document.getElementById('goals-cards');
     container.innerHTML = '';
@@ -922,9 +928,13 @@
       } else {
         deadlineText = g.days_remaining + ' days left';
       }
+      const deadlineTooltipHtml = g.deadline
+        ? ' data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="' +
+          escapeHtml(formatGoalDeadline(g.deadline)) + '"'
+        : '';
       const tooltipContent = buildContributionTooltip(g);
       const infoIconHtml = tooltipContent !== null
-        ? ' <i class="bi bi-info-circle-fill text-primary" data-bs-toggle="tooltip" data-bs-html="true" style="cursor:default;font-size:0.8em;"></i>'
+        ? ' <i class="bi bi-info-circle-fill text-primary" data-contribution-tooltip data-bs-toggle="tooltip" data-bs-html="true" style="cursor:default;font-size:0.8em;"></i>'
         : '';
       const col = document.createElement('div');
       col.className = 'col-sm-6 col-lg-4';
@@ -945,13 +955,13 @@
               '<span>' + g.pct_complete + '%</span>' +
             '</div>' +
             '<div class="mt-2 small text-muted">' +
-              '<i class="bi bi-calendar3 me-1"></i>' + deadlineText + infoIconHtml +
+              '<span' + deadlineTooltipHtml + '><i class="bi bi-calendar3 me-1"></i>' + deadlineText + '</span>' + infoIconHtml +
             '</div>' +
             (g.goal_type === 'debt' && g.category_name ? '<div class="mt-1 small text-muted"><i class="bi bi-tag me-1"></i>Autotracked from ' + escapeHtml(g.category_name) + '</div>' : '') +
           '</div>' +
         '</div>';
       if (tooltipContent !== null) {
-        col.querySelector('[data-bs-toggle="tooltip"]').setAttribute('data-bs-title', tooltipContent);
+        col.querySelector('[data-contribution-tooltip]').setAttribute('data-bs-title', tooltipContent);
       }
       container.appendChild(col);
     });
